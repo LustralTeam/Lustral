@@ -44,12 +44,18 @@ int test_forwarders(const wchar_t* proxy_path)
     auto exports = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
     auto names = reinterpret_cast<DWORD*>(base + exports->AddressOfNames);
 
-    int checked = 0;
+    // The forwarders are generated from a recent Windows version. Older versions, such as GitHub's Windows Server runners,
+    // lack some of the newest exports; those resolve through neither the proxy nor System32, as a program would expect.
+    int checked = 0, absent = 0;
     for (DWORD i = 0; i < exports->NumberOfNames; ++i) {
         auto export_name = reinterpret_cast<const char*>(base + names[i]);
         FARPROC through_proxy = GetProcAddress(proxy, export_name);
         FARPROC direct = GetProcAddress(real, export_name);
-        if (through_proxy == nullptr || through_proxy != direct) {
+        if (through_proxy == nullptr && direct == nullptr) {
+            ++absent;
+            continue;
+        }
+        if (through_proxy != direct) {
             std::fwprintf(stderr, L"FAIL: %hs resolves to %p through the proxy, %p directly\n", export_name,
                           reinterpret_cast<void*>(through_proxy), reinterpret_cast<void*>(direct));
             return 1;
@@ -57,7 +63,10 @@ int test_forwarders(const wchar_t* proxy_path)
         ++checked;
     }
 
-    std::wprintf(L"OK: %d exports forward to %ls\n", checked, system_path.c_str());
+    std::wprintf(L"OK: %d exports forward to %ls", checked, system_path.c_str());
+    if (absent > 0)
+        std::wprintf(L"; %d more are not in this version of Windows", absent);
+    std::wprintf(L"\n");
     return 0;
 }
 
