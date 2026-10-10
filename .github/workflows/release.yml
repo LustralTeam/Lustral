@@ -1,15 +1,24 @@
 # Pushing a tag v<version>, matching the Version in Directory.Build.props, publishes a GitHub release with the release
 # zips and the SDK's NuGet packages. Every version, 0.x included, is published as a normal release and marked as the
 # latest, because the download buttons link to releases/latest/download/<zip>, which skips pre-releases. When the
-# repository variable NUGET_USER
-# is set (the nuget.org account or organization that owns the packages), the packages are also pushed to nuget.org
-# through Trusted Publishing: a short-lived API key is obtained with the workflow's OIDC token, so no API key is stored.
-# This requires a Trusted Publishing policy on nuget.org for this repository and release.yml.
+# repository variable NUGET_USER is set (the nuget.org username of a member of the account that owns the packages), the
+# packages are also pushed to nuget.org through Trusted Publishing: a short-lived API key is obtained with the workflow's
+# OIDC token, so no API key is stored. This requires a Trusted Publishing policy on nuget.org for this repository and
+# release.yml.
+#
+# A tag that was already pushed can be published again by running this workflow manually with the tag, for example
+# after the nuget.org step failed: the GitHub release is created only if it does not exist yet, and nuget.org skips the
+# packages it already has.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to publish again, for example v0.1.0
+        required: true
 
 permissions:
   contents: write
@@ -18,8 +27,12 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
@@ -27,7 +40,7 @@ jobs:
       - name: Version
         run: |
           $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match version $version in Directory.Build.props" }
+          if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG does not match version $version in Directory.Build.props" }
           "VERSION=$version" >> $env:GITHUB_ENV
 
       - name: Unit tests
@@ -49,6 +62,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+              Write-Host "The GitHub release $env:TAG already exists; it is left unchanged."
+              exit 0
+          }
           $notes = @"
           Lustral $env:VERSION for Windows (x64).$(if ($env:VERSION.StartsWith('0.')) { ' Lustral 0.x is an early version for testing: the API may change before version 1.0.' })
 
@@ -58,7 +76,7 @@ jobs:
 
           Questions and feedback: [Discord](https://discord.gg/3Y6Ete73E3).
           "@
-          gh release create $env:GITHUB_REF_NAME (Get-ChildItem artifacts/release/out/*, artifacts/packages/*.nupkg).FullName --title "Lustral $env:VERSION" --notes $notes --latest
+          gh release create $env:TAG (Get-ChildItem artifacts/release/out/*, artifacts/packages/*.nupkg).FullName --title "Lustral $env:VERSION" --notes $notes --latest
 
       # Published last, because nuget.org versions cannot be deleted or reused, whereas a GitHub release can be corrected.
       # The temporary API key is valid for one hour, so it is requested immediately before the push.
@@ -69,6 +87,12 @@ jobs:
         with:
           user: ${{ vars.NUGET_USER }}
 
+      # Each package is pushed by its full path: on Windows, dotnet nuget push does not expand a wildcard in a path with
+      # forward slashes ("File does not exist").
       - name: nuget.org
         if: vars.NUGET_USER != ''
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          foreach ($package in Get-ChildItem artifacts/packages/*.nupkg) {
+              dotnet nuget push $package.FullName --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
