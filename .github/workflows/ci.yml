@@ -59,7 +59,7 @@ jobs:
       - name: Pack
         run: ./tools/pack.ps1 -Output artifacts/release/ci
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: lustral-${{ github.sha }}
           path: artifacts/release/ci/
@@ -104,7 +104,7 @@ jobs:
       # Saved right after the download, before the tests add Lustral and their files to the players.
       - name: Restore the test players
         id: players
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .cache/testplayers/${{ matrix.unity }}
           key: testplayers-${{ steps.release.outputs.name }}
@@ -115,7 +115,7 @@ jobs:
 
       - name: Cache the test players
         if: steps.players.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .cache/testplayers/${{ matrix.unity }}
           key: testplayers-${{ steps.release.outputs.name }}
@@ -136,7 +136,7 @@ jobs:
 
       - name: Logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-logs-${{ matrix.unity }}-${{ github.sha }}
           path: |
