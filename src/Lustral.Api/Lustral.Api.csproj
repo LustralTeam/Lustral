@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+    <RootNamespace>Lustral</RootNamespace>
+    <Description>The public API for Lustral mods.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Mods compile against the package; Lustral provides the assembly at runtime (Lustral.Sdk references it for compilation only). -->
+    <IsPackable>true</IsPackable>
+    <PackageTags>unity;modding;mod-loader;lustral</PackageTags>
+  </PropertyGroup>
+
+  <!-- Includes Lustral's analyzers (analyzers/dotnet/cs), which check mods' entry points, Harmony patches and settings
+       classes at build time. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Lustral.Analyzers\Lustral.Analyzers.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <Target Name="PackLustralAnalyzers" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\Lustral.Analyzers\Lustral.Analyzers.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_LustralAnalyzerAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_LustralAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs" />
+    </ItemGroup>
+  </Target>
+
+  <!-- For Mod.Harmony. Lustral ships HarmonyX, so mods compile against it without copying it. -->
+  <ItemGroup>
+    <PackageReference Include="HarmonyX" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lustral.Core raises the events in GameEvents; mods can only subscribe to them. -->
+    <InternalsVisibleTo Include="Lustral.Core" />
+    <InternalsVisibleTo Include="Lustral.Core.Tests" />
+  </ItemGroup>
+
+</Project>

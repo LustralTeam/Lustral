@@ -1,0 +1,50 @@
+<Project Sdk="Lustral.Sdk/LUSTRAL_SDK_VERSION">
+
+  <PropertyGroup>
+<!--#if (bothBackends) -->
+    <!-- The mod is built once for each backend, against the Mono game and the IL2CPP game below. Specify each game by
+         its installation folder name (Steam or Epic Games Launcher) or by its full path. Machine-specific paths can be set in
+         Game.props.user as LustralMonoGameDir and LustralIl2CppGameDir. Backend-specific code goes under
+         #if LUSTRAL_MONO or #if LUSTRAL_IL2CPP. To build for one backend only, pass -p:LustralBackend=Mono or
+         -p:LustralBackend=Il2Cpp. -->
+    <LustralMonoGame>MONO_GAME</LustralMonoGame>
+    <LustralIl2CppGame>IL2CPP_GAME</LustralIl2CppGame>
+<!--#else -->
+    <!-- The game to build against: the name of its installation folder in a Steam or Epic Games Launcher library, or
+         its full path. A machine-specific path can be set in Game.props.user as LustralGameDir. For a game installed
+         from both stores, <LustralGameStore>Steam or Epic</LustralGameStore> selects the store. -->
+    <LustralGame>GAME_FOLDER</LustralGame>
+<!--#endif -->
+    <ModId>MOD_ID</ModId>
+    <ModName>LustralMod</ModName>
+    <Version>0.1.0</Version>
+    <Description></Description>
+    <Authors></Authors>
+    <!-- Optional details shown with the mod: PackageProjectUrl, RepositoryUrl and PackageLicenseExpression.
+         ModColor sets the color of the mod's name in the console (a Unity color name or #rrggbb). -->
+    <!-- Automatic updates: set ModUpdateSource to github:owner/repository or to the HTTPS address of a JSON feed.
+         With ModPackage set to true, Release builds produce a zip file to attach to each GitHub release. -->
+  </PropertyGroup>
+
+  <!-- Additional files, such as asset bundles, are copied to the mod's folder at the same relative path. Load asset
+       bundles with Assets.LoadBundle("Assets/ui.bundle") and locate other files with Path.Combine(Info.Directory, ...).
+       Files written at runtime belong in Info.DataDirectory, which is preserved when the mod is updated. -->
+  <!-- <ItemGroup><None Include="Assets\**" CopyToOutputDirectory="PreserveNewest" /></ItemGroup> -->
+
+  <!--
+    Dependencies:
+      <ModDependency Include="someone.library" Version="^1.0" />               Required. Installed library mods are
+                                                                               referenced automatically.
+      <ModDependency Include="someone.extras" Version="*" Optional="true" />   Optional. Check for it with
+                                                                               Mods.IsLoaded("someone.extras").
+      <ModIncompatibility Include="someone.otherhud" />                        This mod is not loaded if the other mod is.
+
+    Compatibility (the scripting backend is set automatically):
+      <ModGame Include="Game Name" Versions="1.2.*" />   The game's name as in <game>_Data\app.info, and the supported
+                                                         game versions (Application.version); * is a wildcard.
+
+    Other properties: ModUnityVersion, ModPlatforms, ModProcesses and ModLoadOrder. See the SDK Properties reference in
+    the documentation.
+  -->
+
+</Project>

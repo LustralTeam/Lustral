@@ -1,0 +1,13 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>Bendy and the Ink Machine</LustralGame>
+    <ModId>lustral.samples.bendy</ModId>
+    <ModName>Hello Bendy</ModName>
+    <Version>0.1.0</Version>
+    <Description>IL2CPP sample for Unity 2022.3: a Harmony postfix on the title screen that reads a game list and only writes to the log.</Description>
+  </PropertyGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

@@ -1,0 +1,13 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>PlagueInc</LustralGame>
+    <ModId>lustral.samples.plagueinc</ModId>
+    <ModName>Hello Plague Inc</ModName>
+    <Version>0.1.0</Version>
+    <Description>Mono sample: a Harmony postfix on the game's own code that only writes to the log.</Description>
+  </PropertyGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

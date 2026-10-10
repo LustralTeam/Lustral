@@ -1,0 +1,38 @@
+<Project>
+  <!--
+    Lustral.Sdk: the MSBuild SDK for Lustral mods. A minimal mod project:
+
+      <Project Sdk="Lustral.Sdk/0.1.0">
+        <PropertyGroup>
+          <LustralGame>BOMBANANA!</LustralGame>   (the installation folder name, or a full path)
+          <ModId>you.yourmod</ModId>
+          <Version>1.0.0</Version>
+        </PropertyGroup>
+      </Project>
+
+    The SDK locates the game, selects the target framework for its scripting backend (net10.0 for IL2CPP, netstandard2.1
+    for Mono), and references the game's assemblies, Lustral.Api and HarmonyX, which are provided at runtime and therefore
+    not copied. On every build, it generates mod.toml and deploys the mod to <game>/Mods/<id>/.
+  -->
+  <PropertyGroup>
+    <UsingLustralSdk>true</UsingLustralSdk>
+    <LustralSdkDirectory>$(MSBuildThisFileDirectory)</LustralSdkDirectory>
+  </PropertyGroup>
+
+  <!-- Versions of the packages the SDK references, written when the SDK is packed. In the Lustral repository, they come from
+       central package management. -->
+  <Import Project="$(MSBuildThisFileDirectory)Lustral.Sdk.Versions.props" Condition="Exists('$(MSBuildThisFileDirectory)Lustral.Sdk.Versions.props')" />
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <LangVersion Condition="'$(LangVersion)' == ''">latest</LangVersion>
+    <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
+    <!-- The mod's NuGet dependencies are copied to its folder; Lustral loads them into the mod's load context. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+  </PropertyGroup>
+</Project>

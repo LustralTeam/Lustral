@@ -1,0 +1,51 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Il2CppInterop V2 (PR BepInEx/Il2CppInterop#238). Switch to the official IDs when 2.0 ships.">
+    <PackageVersion Include="ds5678.Il2CppInterop.Common" Version="2.0.0-beta.8" />
+    <PackageVersion Include="ds5678.Il2CppInterop.Runtime" Version="2.0.0-beta.8" />
+    <PackageVersion Include="ds5678.Il2CppInterop.Generator" Version="2.0.0-beta.8" />
+    <PackageVersion Include="ds5678.Il2CppInterop.HarmonySupport" Version="2.0.0-beta.8" />
+  </ItemGroup>
+
+  <!-- Cpp2IL, which Il2CppInterop V2's generator uses (it requires 1.0.8 or later). 1.0.9 reads IL2CPP metadata v107 and
+       v108 (Unity 6000.5 and 6000.6). -->
+  <ItemGroup Label="Cpp2IL">
+    <PackageVersion Include="AssetRipper.Cpp2IL.Core" Version="1.0.9" />
+    <PackageVersion Include="AssetRipper.LibCpp2IL" Version="1.0.9" />
+  </ItemGroup>
+
+  <!--
+    One HarmonyX on both backends, on MonoMod 25 (which Il2CppInterop.HarmonySupport needs). Mods compile against it;
+    Lustral.Sdk reads the property.
+  -->
+  <PropertyGroup>
+    <LustralHarmonyXVersion>2.16.1</LustralHarmonyXVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="Patching">
+    <PackageVersion Include="HarmonyX" Version="$(LustralHarmonyXVersion)" />
+    <PackageVersion Include="MonoMod.RuntimeDetour" Version="25.3.6" />
+    <!-- The version Il2CppInterop.Common uses; Lustral disassembles IL2CPP code with it (FieldDefaultValueFinder). -->
+    <PackageVersion Include="Iced" Version="1.21.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Core">
+    <!-- 0.20 is the last line with no dependencies on netstandard2.0; 1.x+ pulls System.Text.Json and friends into Mono games. -->
+    <PackageVersion Include="Tomlyn" Version="0.20.0" />
+    <!-- Renames Tomlyn at build time (Lustral.Core.csproj); the version HarmonyX and MonoMod already bring. -->
+    <PackageVersion Include="Mono.Cecil" Version="0.11.6" />
+    <!-- Unity's reference assemblies (from BepInEx's feed), compile-only, for the Mono backend's GUI component: the oldest
+         Unity the Mono backend supports. -->
+    <PackageVersion Include="UnityEngine.Modules" Version="2019.4.40" />
+  </ItemGroup>
+
+  <ItemGroup Label="Build and test">
+    <PackageVersion Include="PolySharp" Version="1.16.0" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+  </ItemGroup>
+</Project>

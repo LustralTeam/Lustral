@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>IL2CPP backend: the Il2CppInterop V2 runtime, MonoMod detours and HarmonyX support.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\GameLayout.cs" Link="Shared\GameLayout.cs" />
+    <Compile Include="..\Shared\InteropManifest.cs" Link="Shared\InteropManifest.cs" />
+    <Compile Include="..\Shared\KillOnCloseJob.cs" Link="Shared\KillOnCloseJob.cs" />
+    <Compile Include="..\Shared\UnityLifecycleHooks.cs" Link="Shared\UnityLifecycleHooks.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lustral.Core\Lustral.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lustral.Backend.Il2Cpp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ds5678.Il2CppInterop.Runtime" />
+    <PackageReference Include="ds5678.Il2CppInterop.HarmonySupport" />
+    <PackageReference Include="HarmonyX" />
+    <PackageReference Include="MonoMod.RuntimeDetour" />
+    <!-- MonoMod includes the same types as MonoMod.Iced, so this reference has an alias. -->
+    <PackageReference Include="Iced" Aliases="iced" />
+  </ItemGroup>
+
+</Project>

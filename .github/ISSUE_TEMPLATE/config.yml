@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord
+    url: https://discord.gg/3Y6Ete73E3
+    about: Questions and help with Lustral and mod development.
+  - name: Documentation
+    url: https://lustralteam.github.io/Lustral.Docs/
+    about: Installation, troubleshooting and mod development guides.
+  - name: Documentation issues
+    url: https://github.com/LustralTeam/Lustral.Docs/issues
+    about: Report errors or gaps in the documentation.

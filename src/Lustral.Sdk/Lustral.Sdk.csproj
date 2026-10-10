@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Packages Sdk/ as the Lustral.Sdk MSBuild SDK (<Project Sdk="Lustral.Sdk/x.y.z">). The package contains no assemblies. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageType>MSBuildSdk</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <Description>MSBuild SDK for Lustral mods. Locates the game, references its assemblies, generates the mod manifest and deploys the mod on build.</Description>
+    <PackageTags>unity;modding;mod-loader;lustral;msbuild-sdk</PackageTags>
+    <!-- NU5128: an MSBuild SDK package contains only props and targets, with no lib folder. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\*.props;Sdk\*.targets" Pack="true" PackagePath="Sdk\" />
+  </ItemGroup>
+
+  <!-- Writes the package versions that mods compile against, taken from this repository's central package versions so that
+       they match the versions Lustral ships. -->
+  <Target Name="WriteLustralSdkVersions" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_LustralVersionsFile>$(IntermediateOutputPath)Lustral.Sdk.Versions.props</_LustralVersionsFile>
+      <_Il2CppInteropVersion>@(PackageVersion->WithMetadataValue('Identity', 'ds5678.Il2CppInterop.Runtime')->'%(Version)')</_Il2CppInteropVersion>
+    </PropertyGroup>
+    <Error Condition="'$(LustralHarmonyXVersion)' == '' or '$(_Il2CppInteropVersion)' == ''"
+           Text="Directory.Packages.props has no HarmonyX or ds5678.Il2CppInterop.Runtime version." />
+    <ItemGroup>
+      <!-- %20 preserves indentation, because MSBuild trims leading spaces from item specs. -->
+      <_LustralVersionsLine Include="&lt;Project&gt;" />
+      <_LustralVersionsLine Include="%20%20&lt;!-- Generated when Lustral.Sdk $(PackageVersion) was packed. --&gt;" />
+      <_LustralVersionsLine Include="%20%20&lt;PropertyGroup&gt;" />
+      <_LustralVersionsLine Include="%20%20%20%20&lt;LustralSdkVersion&gt;$(PackageVersion)&lt;/LustralSdkVersion&gt;" />
+      <_LustralVersionsLine Include="%20%20%20%20&lt;LustralHarmonyXVersion&gt;$(LustralHarmonyXVersion)&lt;/LustralHarmonyXVersion&gt;" />
+      <_LustralVersionsLine Include="%20%20%20%20&lt;LustralIl2CppInteropVersion&gt;$(_Il2CppInteropVersion)&lt;/LustralIl2CppInteropVersion&gt;" />
+      <_LustralVersionsLine Include="%20%20&lt;/PropertyGroup&gt;" />
+      <_LustralVersionsLine Include="&lt;/Project&gt;" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_LustralVersionsFile)" Lines="@(_LustralVersionsLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <None Include="$(_LustralVersionsFile)" Pack="true" PackagePath="Sdk\" />
+    </ItemGroup>
+  </Target>
+
+</Project>

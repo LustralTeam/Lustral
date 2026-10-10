@@ -1,0 +1,17 @@
+<Project>
+  <!-- A library mod: it has no entry point, and its assembly is exported to the mods that depend on it. Part of the
+       dependency chain test (tools/e2e.ps1). -->
+  <Import Project="..\..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>LustralTestPlayer</LustralGame>
+    <ModId>lustral.tests.chainlibrary</ModId>
+    <ModName>Chain test library</ModName>
+    <ModKind>library</ModKind>
+    <Version>1.2.0</Version>
+    <LustralLaunchSettings>false</LustralLaunchSettings>
+    <LustralRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\..'))</LustralRepositoryRoot>
+  </PropertyGroup>
+
+  <Import Project="..\..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

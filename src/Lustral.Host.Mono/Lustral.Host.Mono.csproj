@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <Description>The managed entry point on Unity's Mono. Stage 0 loads it into the game's domain and calls NativeEntry.Start (or UnityDoorstop calls Doorstop.Entrypoint.Start), which initializes logging, the backend and mods.</Description>
+    <!-- Lustral/core must contain all dependencies, because Mono has no deps.json to locate them elsewhere. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <GenerateBindingRedirectsOutputType>false</GenerateBindingRedirectsOutputType>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lustral.Backend.Mono\Lustral.Backend.Mono.csproj" />
+  </ItemGroup>
+
+</Project>

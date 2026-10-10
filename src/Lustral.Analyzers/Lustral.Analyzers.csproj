@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <Description>Compile-time checks for Lustral mods: entry points, Harmony patch targets and parameters, and settings classes. Included in the Lustral.Api package.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Analyzers are loaded into the compiler, so they are built against a Roslyn version included in VS 2022 17.14 and all
+         .NET 10 SDKs. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lustral.Analyzers.Tests" />
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md;AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+</Project>

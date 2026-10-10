@@ -1,0 +1,8 @@
+<Project>
+  <!-- Replaces the Build target when LustralSkipWithoutGame applies (see Lustral.Sdk.Mod.targets). -->
+  <Target Name="Build">
+    <Warning Condition="'$(LustralGameDirectory)' == ''" Text="Skipped $(MSBuildProjectName): $(LustralGame)$(LustralGameDir) is not installed." />
+    <Warning Condition="'$(LustralGameDirectory)' != ''"
+             Text="Skipped $(MSBuildProjectName): $(LustralGame) has no interop assemblies. Install Lustral in the game (tools/deploy.ps1) and start the game once to build this project." />
+  </Target>
+</Project>

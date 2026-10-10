@@ -1,0 +1,183 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Generates Il2CppInterop V2 assemblies for an IL2CPP game. Runs in a separate process so that a Cpp2IL crash cannot bring down the game.</Description>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The Lustral logo, rendered from .github/logo.svg at 16 to 256 pixels. The SDK copies it into the apphost, and
+         the Generator's dialogs show it too (ProgressDialog). -->
+    <ApplicationIcon>..\lustral.ico</ApplicationIcon>
+    <!-- Framework-dependent, running on the runtime that Lustral installs in Lustral/dotnet, which the game's CoreCLR also
+         uses. The published apphost looks for it only in ../dotnet; build output keeps the default search for dotnet run. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AppHostRelativeDotNet>..\dotnet</AppHostRelativeDotNet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\GameLayout.cs" Link="Shared\GameLayout.cs" />
+    <Compile Include="..\Shared\InteropManifest.cs" Link="Shared\InteropManifest.cs" />
+    <Compile Include="..\Shared\KillOnCloseJob.cs" Link="Shared\KillOnCloseJob.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Used only by EnumBaseTypeFix, which patches Cpp2IL. -->
+    <PackageReference Include="HarmonyX" />
+    <PackageReference Include="MonoMod.RuntimeDetour" />
+  </ItemGroup>
+
+  <!--
+    Il2CppInterop V2's generator, adapted to Cpp2IL 1.0.9. Its beta.8 build is compiled against Cpp2IL 1.0.8, which cannot
+    read the IL2CPP metadata of Unity 6000.6 (v108). Cpp2IL 1.0.9 can, but it changed four members that the generator uses:
+    two constructors gained optional parameters, Il2CppInterfaceOffset.Type returns an Il2CppType instead of an
+    Il2CppTypeReflectionData, and Il2CppTypeReflectionDataToContext.ToContext became Il2CppTypeToContext.ResolveIl2CppType.
+    The generator's references to them are rewritten at build time with Mono.Cecil, and the project compiles against and
+    ships the adapted copy instead of the package's. Remove this once Il2CppInterop is built against Cpp2IL 1.0.9 or later; the build fails when
+    the generator no longer contains these references.
+  -->
+  <ItemGroup>
+    <PackageReference Include="ds5678.Il2CppInterop.Generator" GeneratePathProperty="true" />
+    <PackageReference Include="AssetRipper.Cpp2IL.Core" GeneratePathProperty="true" />
+    <PackageReference Include="AssetRipper.LibCpp2IL" GeneratePathProperty="true" />
+    <PackageReference Include="Mono.Cecil" GeneratePathProperty="true" />
+    <Reference Include="Il2CppInterop.Generator" HintPath="$(IntermediateOutputPath)Il2CppInterop.Generator.dll" Private="true" />
+  </ItemGroup>
+
+  <UsingTask TaskName="LustralAdaptIl2CppInteropGenerator" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Source ParameterType="System.String" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+      <Cpp2IlCore ParameterType="System.String" Required="true" />
+      <LibCpp2Il ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Reference Include="$(PkgMono_Cecil)\lib\netstandard2.0\Mono.Cecil.dll" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="Mono.Cecil" />
+      <Using Namespace="Mono.Cecil.Cil" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var resolver = new DefaultAssemblyResolver();
+        resolver.AddSearchDirectory(System.IO.Path.GetDirectoryName(Cpp2IlCore));
+        resolver.AddSearchDirectory(System.IO.Path.GetDirectoryName(LibCpp2Il));
+        using (var core = ModuleDefinition.ReadModule(Cpp2IlCore))
+        using (var lib = ModuleDefinition.ReadModule(LibCpp2Il))
+        using (var module = ModuleDefinition.ReadModule(Source, new ReaderParameters { AssemblyResolver = resolver }))
+        {
+            // The references to Cpp2IL name the new version, so that imported members use them.
+            foreach (var reference in module.AssemblyReferences)
+            {
+                if (reference.Name == core.Assembly.Name.Name) reference.Version = core.Assembly.Name.Version;
+                if (reference.Name == lib.Assembly.Name.Name) reference.Version = lib.Assembly.Name.Version;
+            }
+
+            MethodDefinition Constructor(string type) => core.GetType(type).Methods.Single(m => m.IsConstructor && !m.IsStatic);
+            var fieldConstructor = Constructor("Cpp2IL.Core.Model.Contexts.InjectedFieldAnalysisContext");
+            var parameterConstructor = Constructor("Cpp2IL.Core.Model.Contexts.InjectedParameterAnalysisContext");
+            var interfaceType = lib.GetType("LibCpp2IL.Metadata.Il2CppInterfaceOffset").Methods.Single(m => m.Name == "get_Type");
+            var resolve = core.GetType("Cpp2IL.Core.Utils.Il2CppTypeToContext").Methods.Single(m => m.Name == "ResolveIl2CppType");
+
+            // ToContext(type, appContext) -> ResolveIl2CppType(appContext, type), in a helper added to the generator.
+            var helper = new TypeDefinition("Lustral", "Cpp2IlCompatibility",
+                TypeAttributes.NotPublic | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.Class, module.TypeSystem.Object);
+            var toContext = new MethodDefinition("ToContext", MethodAttributes.Assembly | MethodAttributes.Static | MethodAttributes.HideBySig,
+                module.ImportReference(resolve.ReturnType));
+            toContext.Parameters.Add(new ParameterDefinition("type", ParameterAttributes.None, module.ImportReference(interfaceType.ReturnType)));
+            toContext.Parameters.Add(new ParameterDefinition("appContext", ParameterAttributes.None, module.ImportReference(resolve.Parameters[0].ParameterType)));
+            var body = toContext.Body.GetILProcessor();
+            body.Emit(OpCodes.Ldarg_1);
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Call, module.ImportReference(resolve));
+            body.Emit(OpCodes.Ret);
+            helper.Methods.Add(toContext);
+            module.Types.Add(helper);
+
+            var rewritten = 0;
+            foreach (var method in module.GetTypes().SelectMany(t => t.Methods).Where(m => m.HasBody).ToList())
+            {
+                var il = method.Body.GetILProcessor();
+                foreach (var instruction in method.Body.Instructions.ToList())
+                {
+                    var target = instruction.Operand as MethodReference;
+                    if (target == null)
+                        continue;
+                    var declaring = target.DeclaringType.FullName;
+                    if (instruction.OpCode == OpCodes.Newobj && target.Parameters.Count == 4 && declaring == fieldConstructor.DeclaringType.FullName ||
+                        instruction.OpCode == OpCodes.Newobj && target.Parameters.Count == 5 && declaring == parameterConstructor.DeclaringType.FullName)
+                    {
+                        // The added parameters are optional; their default values are passed.
+                        var constructor = declaring == fieldConstructor.DeclaringType.FullName ? fieldConstructor : parameterConstructor;
+                        foreach (var added in constructor.Parameters.Skip(target.Parameters.Count))
+                        {
+                            if (!added.HasDefault)
+                                throw new System.InvalidOperationException(constructor + ": " + added.Name + " has no default value");
+                            il.InsertBefore(instruction, added.Constant == null ? il.Create(OpCodes.Ldnull) : il.Create(OpCodes.Ldc_I4, (int)added.Constant));
+                        }
+                        instruction.Operand = module.ImportReference(constructor);
+                        rewritten++;
+                    }
+                    else if (declaring == "LibCpp2IL.Metadata.Il2CppInterfaceOffset" && target.Name == "get_Type" && target.ReturnType.Name == "Il2CppTypeReflectionData")
+                    {
+                        instruction.Operand = module.ImportReference(interfaceType);
+                        rewritten++;
+                    }
+                    else if (declaring == "Cpp2IL.Core.Utils.Il2CppTypeReflectionDataToContext" && target.Name == "ToContext")
+                    {
+                        // Only the result of Il2CppInterfaceOffset.Type is converted: get_Type, then the app context (ldarg, ldfld).
+                        var source = instruction.Previous?.Previous?.Previous;
+                        if (!(source?.Operand is MethodReference getType && getType.Name == "get_Type" && getType.DeclaringType.Name == "Il2CppInterfaceOffset"))
+                            throw new System.InvalidOperationException(method.FullName + " converts a type that is not an interface offset's");
+                        instruction.Operand = toContext;
+                        rewritten++;
+                    }
+                }
+            }
+            if (rewritten == 0)
+                throw new System.InvalidOperationException("Il2CppInterop's generator no longer uses Cpp2IL 1.0.8's members; remove LustralAdaptIl2CppInteropGenerator");
+            Log.LogMessage(MessageImportance.Normal, "Adapted " + rewritten + " references in Il2CppInterop.Generator to Cpp2IL " + core.Assembly.Name.Version);
+            module.Write(Destination);
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="LustralAdaptIl2CppInteropGenerator" BeforeTargets="ResolveAssemblyReferences"
+          Inputs="$(PkgDs5678_Il2CppInterop_Generator)\lib\$(TargetFramework)\Il2CppInterop.Generator.dll;$(MSBuildThisFileFullPath)"
+          Outputs="$(IntermediateOutputPath)Il2CppInterop.Generator.dll">
+    <LustralAdaptIl2CppInteropGenerator Source="$(PkgDs5678_Il2CppInterop_Generator)\lib\$(TargetFramework)\Il2CppInterop.Generator.dll"
+                                        Destination="$(IntermediateOutputPath)Il2CppInterop.Generator.dll"
+                                        Cpp2IlCore="$(PkgAssetRipper_Cpp2IL_Core)\lib\$(TargetFramework)\Cpp2IL.Core.dll"
+                                        LibCpp2Il="$(PkgAssetRipper_LibCpp2IL)\lib\$(TargetFramework)\LibCpp2IL.dll" />
+  </Target>
+
+  <Target Name="LustralUseAdaptedIl2CppInteropGenerator" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <ResolvedCompileFileDefinitions Remove="@(ResolvedCompileFileDefinitions)" Condition="'%(Filename)%(Extension)' == 'Il2CppInterop.Generator.dll'" />
+      <RuntimeCopyLocalItems Remove="@(RuntimeCopyLocalItems)" Condition="'%(Filename)%(Extension)' == 'Il2CppInterop.Generator.dll'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- crossgen2 precompiles the interop assemblies (ReadyToRun), so that about 66,000 methods are not JIT-compiled at
+       game startup. -->
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.NETCore.App.Crossgen2.win-x64" Version="[$(LustralDotNetRuntimeVersion)]" />
+  </ItemGroup>
+
+  <Target Name="CopyCrossgen2" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <!-- Lustral compiles only for win-x64; the JIT compilers for other targets (8 MB) are excluded. -->
+      <Crossgen2File Include="$(NuGetPackageRoot)microsoft.netcore.app.crossgen2.win-x64\$(LustralDotNetRuntimeVersion)\tools\**\*"
+                     Exclude="$(NuGetPackageRoot)microsoft.netcore.app.crossgen2.win-x64\$(LustralDotNetRuntimeVersion)\tools\**\clrjit_*.dll" />
+      <Crossgen2File Include="$(NuGetPackageRoot)microsoft.netcore.app.crossgen2.win-x64\$(LustralDotNetRuntimeVersion)\tools\**\clrjit_win_x64_x64.dll" />
+      <!-- The .NET license and third-party notices, which must accompany it. -->
+      <Crossgen2File Include="$(NuGetPackageRoot)microsoft.netcore.app.crossgen2.win-x64\$(LustralDotNetRuntimeVersion)\LICENSE.TXT;$(NuGetPackageRoot)microsoft.netcore.app.crossgen2.win-x64\$(LustralDotNetRuntimeVersion)\THIRD-PARTY-NOTICES.TXT" />
+    </ItemGroup>
+    <Error Condition="'@(Crossgen2File)' == ''" Text="crossgen2 $(LustralDotNetRuntimeVersion) has not been restored; run dotnet restore." />
+    <Copy SourceFiles="@(Crossgen2File)" DestinationFolder="$(OutDir)crossgen2\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy Condition="'$(_IsPublishing)' == 'true'" SourceFiles="@(Crossgen2File)" DestinationFolder="$(PublishDir)crossgen2\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

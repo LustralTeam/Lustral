@@ -1,0 +1,74 @@
+# Pushing a tag v<version>, matching the Version in Directory.Build.props, publishes a GitHub release with the release
+# zips and the SDK's NuGet packages. Every version, 0.x included, is published as a normal release and marked as the
+# latest, because the download buttons link to releases/latest/download/<zip>, which skips pre-releases. When the
+# repository variable NUGET_USER
+# is set (the nuget.org account or organization that owns the packages), the packages are also pushed to nuget.org
+# through Trusted Publishing: a short-lived API key is obtained with the workflow's OIDC token, so no API key is stored.
+# This requires a Trusted Publishing policy on nuget.org for this repository and release.yml.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Version
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match version $version in Directory.Build.props" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Unit tests
+        run: |
+          dotnet test --project tests/Lustral.Core.Tests -c Release
+          dotnet test --project tests/Lustral.Analyzers.Tests -c Release
+
+      - name: Release zips
+        run: ./tools/pack.ps1 -Output artifacts/release/out
+
+      - name: NuGet packages
+        run: |
+          foreach ($project in 'src/Lustral.Api', 'src/Lustral.Sdk', 'src/Lustral.Templates') {
+              dotnet pack $project -c Release -o artifacts/packages
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          Lustral $env:VERSION for Windows (x64).$(if ($env:VERSION.StartsWith('0.')) { ' Lustral 0.x is an early version for testing: the API may change before version 1.0.' })
+
+          **Players:** download ``lustral-win-x64-il2cpp.zip`` if the game's folder has a ``GameAssembly.dll``, otherwise ``lustral-win-x64-mono.zip``, and extract it into the game's folder. See the [Installation Guide](https://lustralteam.github.io/Lustral.Docs/user-guide/installation).
+
+          **Mod developers:** ``dotnet new install Lustral.Templates::$env:VERSION`` (in Rider, the attached ``Lustral.Templates.$env:VERSION.nupkg`` can also be installed from the New Solution dialog), then see the [Developer Guide](https://lustralteam.github.io/Lustral.Docs/developer-guide/getting-started).
+
+          Questions and feedback: [Discord](https://discord.gg/3Y6Ete73E3).
+          "@
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem artifacts/release/out/*, artifacts/packages/*.nupkg).FullName --title "Lustral $env:VERSION" --notes $notes --latest
+
+      # Published last, because nuget.org versions cannot be deleted or reused, whereas a GitHub release can be corrected.
+      # The temporary API key is valid for one hour, so it is requested immediately before the push.
+      - name: nuget.org login
+        id: nuget
+        if: vars.NUGET_USER != ''
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: nuget.org
+        if: vars.NUGET_USER != ''
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

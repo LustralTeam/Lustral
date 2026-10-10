@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <DebugType>embedded</DebugType>
+    <Version>0.1.0</Version>
+    <!-- The NuGet packages' authors and every assembly's company (which the SDK otherwise takes from Authors). -->
+    <Authors>Lustral Team</Authors>
+    <Company>Lustral Team</Company>
+    <Product>Lustral</Product>
+    <IsPackable>false</IsPackable>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- The .NET runtime Lustral bundles for IL2CPP games. crossgen2 (ReadyToRun) must match it, so both read this. -->
+    <LustralDotNetRuntimeVersion>10.0.12</LustralDotNetRuntimeVersion>
+  </PropertyGroup>
+
+  <!-- Language polyfills (init, required, nullable attributes) for netstandard2.0 and .NET Framework targets. Compile time only. -->
+  <ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp'">
+    <PackageReference Include="PolySharp" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a problem with Lustral.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If the problem occurs only with a particular mod, report it to the mod's author first. Do not report security
+        vulnerabilities here; use Security > Report a vulnerability instead.
+  - type: input
+    id: version
+    attributes:
+      label: Lustral version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Scripting backend
+      description: IL2CPP if the game folder contains GameAssembly.dll, otherwise Mono.
+      options:
+        - IL2CPP
+        - Mono
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game, game version and Unity version
+      description: The first lines of Lustral/Logs/latest.log contain this information.
+      placeholder: BloonsTD6 57.0, Unity 6000.3.23f1
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what was expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Install Lustral and the mods listed below.
+        2. Start the game.
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: mods
+    attributes:
+      label: Installed mods
+      description: Each mod's ID and version, as listed in the log.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log and crash report
+      description: >-
+        Attach Lustral/Logs/latest.log from the affected session and, after a crash, the report in Lustral/Reports.
+        Drag the files into this field.
+    validations:
+      required: true

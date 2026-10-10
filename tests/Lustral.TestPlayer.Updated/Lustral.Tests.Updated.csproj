@@ -1,0 +1,22 @@
+<Project>
+  <!-- The update test (tools/e2e.ps1 -Scenario updates): built as several versions, which are served from a local feed.
+       -p:E2EBroken=true builds a version that fails to load, which Lustral must roll back. -->
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>LustralTestPlayer</LustralGame>
+    <ModId>lustral.tests.updated</ModId>
+    <ModName>Updates test mod</ModName>
+    <Version>1.0.0</Version>
+    <LustralLaunchSettings>false</LustralLaunchSettings>
+    <LustralRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..'))</LustralRepositoryRoot>
+    <DefineConstants Condition="'$(E2EBroken)' == 'true'">$(DefineConstants);E2E_BROKEN</DefineConstants>
+  </PropertyGroup>
+
+  <!-- A file that the mod ships next to its assembly, deployed and packaged in its folder. -->
+  <ItemGroup>
+    <None Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

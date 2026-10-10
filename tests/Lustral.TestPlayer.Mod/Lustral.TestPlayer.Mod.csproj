@@ -1,0 +1,29 @@
+<Project>
+  <!-- The end-to-end test mod (tools/e2e.ps1), built with Lustral.Sdk against a test player: -p:LustralGameDir=.cache\testplayers\<unity version>\<platform> -->
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>LustralTestPlayer</LustralGame>
+    <ModId>lustral.tests.player</ModId>
+    <ModName>Lustral end-to-end tests</ModName>
+    <Version>1.0.0</Version>
+    <LustralLaunchSettings>false</LustralLaunchSettings>
+    <ModLustralVersion>&gt;=0.0.1</ModLustralVersion>
+    <!-- Lustral.Api as a project reference, as in the samples. -->
+    <LustralRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..'))</LustralRepositoryRoot>
+  </PropertyGroup>
+
+  <!-- Requirements that the test players meet (see LustralTeam/Lustral.TestPlayers), so that the mod passes the
+       requirement checks. -->
+  <ItemGroup>
+    <ModGame Include="Lustral Test Player" Developer="Lustral" Versions="1.*" />
+  </ItemGroup>
+
+  <!-- The asset bundle that comes with each test player, shipped in the mod's folder. -->
+  <ItemGroup Condition="'$(LustralGameDir)' != ''">
+    <None Include="$(LustralGameDir)\e2e\lustral-e2e.bundle" Link="Assets\lustral-e2e.bundle" CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('$(LustralGameDir)\e2e\lustral-e2e.bundle')" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

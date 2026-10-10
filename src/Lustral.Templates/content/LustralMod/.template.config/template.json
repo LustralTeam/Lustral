@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Lustral Team",
+  "classifications": [
+    "Lustral",
+    "Unity",
+    "Games",
+    "Mod"
+  ],
+  "identity": "Lustral.Templates.Mod",
+  "name": "Lustral Mod",
+  "description": "A Unity mod project for Lustral. Building the project deploys the mod to the game.",
+  "shortName": "lustral-mod",
+  "defaultName": "MyMod",
+  "sourceName": "LustralMod",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "game": {
+      "type": "parameter",
+      "datatype": "text",
+      "isRequired": false,
+      "replaces": "GAME_FOLDER",
+      "description": "The game to build against: the name of its installation folder in a Steam or Epic Games Launcher library (for example \"BOMBANANA!\"), or its full path. To target both scripting backends, use --mono-game and --il2cpp-game instead.",
+      "defaultValue": ""
+    },
+    "monoGame": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "replaces": "MONO_GAME",
+      "description": "The Mono game to build against, for mods that target both scripting backends: its installation folder name, or its full path."
+    },
+    "il2cppGame": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "replaces": "IL2CPP_GAME",
+      "description": "The IL2CPP game to build against, for mods that target both scripting backends: its installation folder name, or its full path."
+    },
+    "bothBackends": {
+      "type": "computed",
+      "value": "(monoGame != \"\" || il2cppGame != \"\")"
+    },
+    "id": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "The mod ID: lowercase letters and digits, separated by dots, hyphens or underscores (for example you.yourmod). Defaults to the project name in lowercase."
+    },
+    "idFromName": {
+      "type": "derived",
+      "valueSource": "name",
+      "valueTransform": "lowerCase"
+    },
+    "modId": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "id",
+        "fallbackVariableName": "idFromName"
+      },
+      "replaces": "MOD_ID"
+    }
+  },
+  "forms": {
+    "lowerCase": {
+      "identifier": "lowerCaseInvariant"
+    }
+  },
+  "primaryOutputs": [
+    {
+      "path": "LustralMod.csproj"
+    }
+  ],
+  "postActions": [
+    {
+      "description": "Restore NuGet packages required by this project.",
+      "manualInstructions": [
+        {
+          "text": "Run 'dotnet restore'"
+        }
+      ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ]
+}

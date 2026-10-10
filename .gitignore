@@ -1,0 +1,30 @@
+## Build output
+bin/
+obj/
+artifacts/
+*.user
+*.props.user
+
+## IDEs
+# Lustral.Sdk writes the samples' launch profiles with this machine's game paths.
+samples/**/Properties/launchSettings.json
+.vs/
+.idea/
+.vscode/
+*.suo
+*.DotSettings.user
+
+## Test results
+TestResults/
+*.trx
+
+## Downloaded tools and game-derived files (never commit these)
+/.cache/
+/interop/
+/cpp2il_out/
+
+## Native build output
+/stage0/build/
+
+## Local working notes (not published)
+CLAUDE.md

@@ -1,0 +1,6 @@
+bin/
+obj/
+# Your own game location, if Lustral.Sdk can't find the game by itself.
+Game.props.user
+# Written by Lustral.Sdk with this machine's game path.
+Properties/launchSettings.json

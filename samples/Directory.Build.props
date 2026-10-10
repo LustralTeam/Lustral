@@ -1,0 +1,26 @@
+<Project>
+  <!-- The samples use Lustral.Sdk directly from src/Lustral.Sdk/Sdk (their projects import Sdk.props and Sdk.targets
+       instead of using <Project Sdk="Lustral.Sdk">), with Lustral.Api as a project reference. Visual Studio treats a
+       project without an Sdk attribute or a TargetFramework in its own file as an old-style project and offers a one-way
+       upgrade, so Lustral.slnx assigns each sample Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" (SDK-style C#). New samples
+       require this as well. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <LustralRepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..'))</LustralRepositoryRoot>
+    <!-- Lustral's version (the repository's, before a sample sets its own), which a packed SDK reads from
+         Lustral.Sdk.Versions.props. -->
+    <LustralSdkVersion>$(Version)</LustralSdkVersion>
+    <!-- Samples whose game is not installed, or lacks Lustral's interop assemblies, are skipped instead of failing the build. -->
+    <LustralSkipWithoutGame>true</LustralSkipWithoutGame>
+    <!-- A command-line build of Lustral.slnx builds the samples without deploying them, so that it leaves the installed
+         games unchanged. A sample built on its own, from an IDE or by tools/deploy.ps1, is deployed; to deploy all
+         samples from a solution build, pass -p:LustralDeploy=true. -->
+    <LustralDeploy Condition="'$(LustralDeploy)' == '' and '$(BuildingSolutionFile)' == 'true'">false</LustralDeploy>
+    <!-- As in mods created from the template (the repository otherwise embeds symbols): a .pdb file next to the mod,
+         deployed with it. -->
+    <DebugType>portable</DebugType>
+    <!-- The samples are licensed under MIT-0 (samples/LICENSE); the SDK writes this to their manifests. -->
+    <PackageLicenseExpression>MIT-0</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

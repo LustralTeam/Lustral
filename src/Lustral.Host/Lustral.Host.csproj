@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Framework-dependent, running on the runtime in Lustral/dotnet, which stage 0 starts. The RID places RID-specific
+         dependency assets directly in the publish folder, where stage 0 enumerates the trusted assemblies. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>The managed entry point on IL2CPP. Stage 0 calls NativeEntry.Start (or Doorstop.Entrypoint.Start with Doorstop), which initializes logging, the backend and mods.</Description>
+  </PropertyGroup>
+
+  <!-- The runtime that Lustral ships in Lustral/dotnet, laid out as a .NET installation by tools/deploy.ps1. Its version
+       is pinned and matches crossgen2 (Lustral.Generator). -->
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.NETCore.App.Runtime.win-x64" Version="[$(LustralDotNetRuntimeVersion)]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lustral.Core\Lustral.Core.csproj" />
+    <ProjectReference Include="..\Lustral.Backend.Il2Cpp\Lustral.Backend.Il2Cpp.csproj" />
+  </ItemGroup>
+
+</Project>

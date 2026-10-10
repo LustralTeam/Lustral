@@ -1,0 +1,134 @@
+# Builds Lustral, runs the unit tests, packs the release zips and runs the end-to-end tests against Lustral's own
+# Unity test players, one job per Unity version. The test players are downloaded from the releases of
+# LustralTeam/Lustral.TestPlayers that tests/testplayers.json lists, because building them requires a Unity Editor and
+# license; they are cached between runs.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Lustral.slnx -c Release
+
+      - name: Unit tests
+        run: |
+          dotnet test --project tests/Lustral.Core.Tests -c Release --no-build
+          dotnet test --project tests/Lustral.Analyzers.Tests -c Release --no-build
+          dotnet test --project tests/Lustral.Backend.Il2Cpp.Tests -c Release --no-build
+
+      # Text resembling a template directive (such as #if in a comment) can make the template engine drop content, so the
+      # generated files are checked. The restore post-action fails here because the SDK version placeholder is replaced
+      # only when the templates are packed.
+      - name: Project template
+        run: |
+          dotnet new install src/Lustral.Templates/content/LustralMod --debug:custom-hive artifacts/template-hive
+          dotnet new lustral-mod -n TemplateCheck --game Game -o artifacts/template-check/single --debug:custom-hive artifacts/template-hive
+          dotnet new lustral-mod -n TemplateCheck --mono-game MonoGame --il2cpp-game Il2CppGame -o artifacts/template-check/both --debug:custom-hive artifacts/template-hive
+          foreach ($folder in 'single', 'both') {
+              $entry = "artifacts/template-check/$folder/ModEntry.cs"
+              if (-not (Select-String -LiteralPath $entry -Pattern 'public sealed class ModEntry' -Quiet)) { throw "The template generated an incomplete $entry" }
+              [xml](Get-Content -Raw "artifacts/template-check/$folder/TemplateCheck.csproj") | Out-Null
+          }
+
+      - name: Stage 0
+        run: |
+          ./stage0/build.ps1
+          ./stage0/build/x64-release/stage0_test.exe forwarders ./stage0/build/x64-release/winhttp.dll
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./stage0/build/x64-release/stage0_test.exe arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./stage0/build/x64-release/stage0_test.exe packages
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Pack
+        run: ./tools/pack.ps1 -Output artifacts/release/ci
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lustral-${{ github.sha }}
+          path: artifacts/release/ci/
+
+  # The Unity versions of the test players, one e2e job each.
+  test-players:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.list.outputs.versions }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: tests/testplayers.json
+          sparse-checkout-cone-mode: false
+      - id: list
+        shell: pwsh
+        run: |
+          $versions = @((Get-Content -Raw tests/testplayers.json | ConvertFrom-Json).releases | ForEach-Object { $_.Split('-')[0] })
+          "versions=$(ConvertTo-Json -Compress -InputObject $versions)" >> $env:GITHUB_OUTPUT
+
+  e2e:
+    name: e2e (Unity ${{ matrix.unity }})
+    needs: test-players
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        unity: ${{ fromJSON(needs.test-players.outputs.versions) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Release
+        id: release
+        run: |
+          $release = (Get-Content -Raw tests/testplayers.json | ConvertFrom-Json).releases | Where-Object { $_.Split('-')[0] -eq '${{ matrix.unity }}' }
+          "name=$release" >> $env:GITHUB_OUTPUT
+
+      # Saved right after the download, before the tests add Lustral and their files to the players.
+      - name: Restore the test players
+        id: players
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/testplayers/${{ matrix.unity }}
+          key: testplayers-${{ steps.release.outputs.name }}
+
+      - name: Download the test players
+        if: steps.players.outputs.cache-hit != 'true'
+        run: ./tools/get-testplayers.ps1 -UnityVersion ${{ matrix.unity }}
+
+      - name: Cache the test players
+        if: steps.players.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/testplayers/${{ matrix.unity }}
+          key: testplayers-${{ steps.release.outputs.name }}
+
+      - name: End-to-end tests
+        run: ./tools/e2e.ps1 -UnityVersion ${{ matrix.unity }}
+
+      - name: Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.unity }}-${{ github.sha }}
+          path: |
+            .cache/testplayers/${{ matrix.unity }}/*/Lustral/Logs/
+            .cache/testplayers/${{ matrix.unity }}/*/Lustral/Reports/
+          if-no-files-found: ignore

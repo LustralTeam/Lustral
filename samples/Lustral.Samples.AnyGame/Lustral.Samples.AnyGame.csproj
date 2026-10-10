@@ -1,0 +1,16 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <!-- One game per backend: the project is built for both, against and into each game. No ModGame is specified, so
+         the mod loads in any game. -->
+    <LustralMonoGame>PlagueInc</LustralMonoGame>
+    <LustralIl2CppGame>BloonsTD6</LustralIl2CppGame>
+    <ModId>lustral.samples.anygame</ModId>
+    <ModName>Hello Any Game</ModName>
+    <Version>0.1.0</Version>
+    <Description>Sample for all Unity games, Mono and IL2CPP, from a single project: the mod's MonoBehaviour counts frames and writes to the log.</Description>
+  </PropertyGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json.schemastore.org/ide.host",
+  "icon": "icon.png",
+  "symbolInfo": [
+    {
+      "id": "game",
+      "name": { "text": "Game" },
+      "description": { "text": "The game to build against: the name of its installation folder in a Steam or Epic Games Launcher library (for example \"BOMBANANA!\"), or its full path. Leave empty to target both scripting backends with the two fields below." },
+      "isVisible": true
+    },
+    {
+      "id": "monoGame",
+      "name": { "text": "Mono game (both backends)" },
+      "description": { "text": "For mods that target both scripting backends: the Mono game to build against, by installation folder name or full path." },
+      "isVisible": true
+    },
+    {
+      "id": "il2cppGame",
+      "name": { "text": "IL2CPP game (both backends)" },
+      "description": { "text": "For mods that target both scripting backends: the IL2CPP game to build against, by installation folder name or full path." },
+      "isVisible": true
+    },
+    {
+      "id": "id",
+      "name": { "text": "Mod ID" },
+      "description": { "text": "Lowercase letters and digits, separated by dots, hyphens or underscores (for example you.yourmod). Defaults to the project name in lowercase." },
+      "isVisible": true
+    }
+  ]
+}

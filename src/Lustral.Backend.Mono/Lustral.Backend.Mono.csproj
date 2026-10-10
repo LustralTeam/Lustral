@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Unity's Mono class libraries correspond to .NET Framework 4.7.x. 4.7.2 is used instead of 4.7.1 so that the SDK does
+         not add netstandard facades. -->
+    <TargetFramework>net472</TargetFramework>
+    <Description>Mono backend: mods run in the game's Mono domain, where HarmonyX works without additional support.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\UnityLifecycleHooks.cs" Link="Shared\UnityLifecycleHooks.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lustral.Core\Lustral.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped for mods. The .NET Framework build of HarmonyX has no System.Text.Json dependency. -->
+    <PackageReference Include="HarmonyX" />
+    <PackageReference Include="MonoMod.RuntimeDetour" />
+    <!-- Unity 2019.4 reference assemblies for LustralGuiBehaviour, for compilation only; the game provides Unity at runtime. -->
+    <PackageReference Include="UnityEngine.Modules" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

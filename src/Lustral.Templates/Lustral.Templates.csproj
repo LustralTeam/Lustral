@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Packages content/ as dotnet new templates. Install with dotnet new install Lustral.Templates. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageType>Template</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- NuGet excludes files and folders whose names start with a dot by default, such as .gitignore and .template.config. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <Description>Project templates for Lustral mods. Usage: dotnet new lustral-mod --game "Game Name".</Description>
+    <PackageTags>unity;modding;mod-loader;lustral;dotnet-new;templates</PackageTags>
+    <!-- The template is licensed under MIT-0, so that mods created from it can use any license. -->
+    <PackageLicenseExpression>MIT-0</PackageLicenseExpression>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <!-- Generated projects reference the Lustral.Sdk version matching this package: LUSTRAL_SDK_VERSION is replaced with it. -->
+  <Target Name="PrepareTemplateContent" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_TemplateContent>$(IntermediateOutputPath)content\</_TemplateContent>
+    </PropertyGroup>
+    <ItemGroup>
+      <_TemplateFile Include="content\**\*" Exclude="content\**\bin\**;content\**\obj\**" />
+      <_TemplateProject Include="@(_TemplateFile)" Condition="'%(Extension)' == '.csproj'" />
+      <_TemplateFile Remove="@(_TemplateProject)" />
+    </ItemGroup>
+    <RemoveDir Directories="$(_TemplateContent)" />
+    <Copy SourceFiles="@(_TemplateFile)" DestinationFiles="@(_TemplateFile->'$(_TemplateContent)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <!-- Written as a single escaped line so that semicolons are preserved, with CRLF line endings throughout to match the
+         line ending that WriteLinesToFile appends. -->
+    <WriteLinesToFile File="$(_TemplateContent)%(_TemplateProject.RecursiveDir)%(_TemplateProject.Filename)%(_TemplateProject.Extension)"
+                      Lines="$([MSBuild]::Escape($([System.IO.File]::ReadAllText('%(_TemplateProject.FullPath)').Replace('LUSTRAL_SDK_VERSION', '$(PackageVersion)').Replace('&#xD;&#xA;', '&#xA;').Replace('&#xA;', '&#xD;&#xA;').TrimEnd())))" Overwrite="true" />
+    <ItemGroup>
+      <_TemplatePackFile Include="$(_TemplateContent)**\*" />
+      <!-- NuGet appends each file's subfolder (RecursiveDir) below content\. -->
+      <None Include="@(_TemplatePackFile)" Pack="true" PackagePath="content\" />
+    </ItemGroup>
+  </Target>
+
+</Project>

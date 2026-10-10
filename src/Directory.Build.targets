@@ -1,0 +1,19 @@
+<Project>
+  <!-- NuGet package metadata for the packable projects (Lustral.Api, Lustral.Sdk and Lustral.Templates). Defined here
+       rather than in Directory.Build.props because IsPackable is set in the project files. -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageLicenseExpression Condition="'$(PackageLicenseExpression)' == ''">LGPL-3.0-only</PackageLicenseExpression>
+    <Copyright>Copyright 2026 sxxr0 and the Lustral contributors</Copyright>
+    <PackageProjectUrl>https://lustralteam.github.io/Lustral.Docs/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/LustralTeam/Lustral</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageIcon>package-icon.png</PackageIcon>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)package-icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+  <!-- The LGPL's full text, which consists of the GPL and the LGPL's additional permissions, in each LGPL package. -->
+  <ItemGroup Condition="'$(IsPackable)' == 'true' and '$(PackageLicenseExpression)' == 'LGPL-3.0-only'">
+    <None Include="$(MSBuildThisFileDirectory)..\COPYING;$(MSBuildThisFileDirectory)..\COPYING.LESSER" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+</Project>

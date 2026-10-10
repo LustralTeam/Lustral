@@ -1,0 +1,13 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>BOMBANANA!</LustralGame>
+    <ModId>lustral.samples.bombanana</ModId>
+    <ModName>Hello BOMBANANA!</ModName>
+    <Version>0.1.0</Version>
+    <Description>IL2CPP sample: a Harmony postfix on an IL2CPP method that only writes to the log.</Description>
+  </PropertyGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

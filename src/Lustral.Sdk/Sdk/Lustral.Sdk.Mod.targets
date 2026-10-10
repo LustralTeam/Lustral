@@ -1,0 +1,727 @@
+<Project>
+  <!--
+    Mod properties and items, compile references, manifest generation (mod.toml) and deployment.
+
+    The game is set with LustralGame: the name of its installation folder in a Steam or Epic Games Launcher library, or
+    its full path. A machine-specific path can be set as LustralGameDir in Game.props.user. LustralGameStore (Steam or
+    Epic) restricts the search to one store, for games installed from both. Mods that target both scripting backends set LustralMonoGame and
+    LustralIl2CppGame (or LustralMonoGameDir and LustralIl2CppGameDir) instead; see Lustral.Sdk.Game.props.
+
+    Properties
+      ModId                     Required. Lowercase, for example you.yourmod.
+      ModName                   Display name. Default: the assembly name.
+      Version, Description      The mod's version and a one-sentence description.
+      Authors                   Semicolon-separated list of authors.
+      ModCredits                Acknowledgements, shown with the mod's details.
+      PackageLicenseExpression  An SPDX license expression, for example MIT.
+      PackageProjectUrl         Written as the mod's "website" link. RepositoryUrl is written as its "source" link.
+      ModKind                   mod (default) or library.
+      ModLoadOrder              Among mods that do not depend on each other, lower values load first. Default: 0.
+      ModColor                  Color of the mod's name in the console: a Unity color name or #rrggbb. Default: derived
+                                from the ID.
+      ModLustralVersion         Supported Lustral versions. Default: the version built against and later versions
+                                without breaking changes (the same major version, or the same minor version before 1.0).
+      ModBackends               mono, il2cpp, or mono;il2cpp. Default: the backend of the game built against.
+      ModPlatforms              windows, linux or macos, optionally with -x64, -x86 or -arm64. Default: any.
+      ModUnityVersion           A Unity version range, for example >=2022.3. Default: any.
+      ModProcesses              Executable names, for games that ship more than one. Default: any.
+      ModUpdateSource           Source of automatic updates: github:owner/repository (the repository's releases) or the
+                                HTTPS address of a JSON feed.
+      ModUpdateAsset            For GitHub sources, the release file to download; supports * wildcards. Default: the
+                                release's only .zip file.
+      ModPackage                true to also produce bin\...\<id>-<version>.zip, containing the mod's folder, to attach
+                                to a release. Mods built for both backends produce bin\<configuration>\<id>-<version>-mono.zip
+                                and -il2cpp.zip.
+      LustralDeploy             true (default) to deploy the mod to the game on build; false to build only.
+    Items
+      <ModDependency Include="other.mod" Version="^1.2" />                  A required mod. If it is a library installed in
+                                                                            the game, its exported assemblies are referenced
+                                                                            (set Reference="false" to disable).
+      <ModDependency Include="other.mod" Version="*" Optional="true" />     An optional mod, loaded first if present. Check
+                                                                            for it with Mods.IsLoaded("other.mod").
+      <ModIncompatibility Include="other.mod" Version="&lt;2.0" />          An incompatible mod (all versions by default).
+                                                                            This mod is not loaded if that mod is loaded.
+      <ModGame Include="Lethal Company" Developer="Zeekerss" Versions="v72;v73*" />
+                                                                            A supported game, by the name in
+                                                                            <game>_Data\app.info. Developer and Versions
+                                                                            (Application.version, * wildcards) are optional.
+      <ModLink Include="issues" Url="https://..." />                       Additional links shown with the mod's details.
+      <ModExport Include="Some.Assembly" />                                 The assemblies of a library that its dependents
+                                                                            can reference. Default: the library's assembly.
+    Additional files, such as asset bundles: items copied to the output folder, for example
+      <None Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+    are deployed to the mod's folder at the same relative path (Mods\<id>\Assets\...) and included in the ModPackage zip.
+  -->
+  <PropertyGroup>
+    <ModName Condition="'$(ModName)' == ''">$(AssemblyName)</ModName>
+    <ModKind Condition="'$(ModKind)' == ''">mod</ModKind>
+    <LustralDeploy Condition="'$(LustralDeploy)' == ''">true</LustralDeploy>
+    <LustralModManifestPath>$(IntermediateOutputPath)mod.toml</LustralModManifestPath>
+  </PropertyGroup>
+  <!-- Defaults derived from the game: the mod runs on the backend it is built for. -->
+  <PropertyGroup>
+    <ModBackends Condition="'$(ModBackends)' == '' and '$(LustralBackend)' != ''">$(LustralBackend.ToLowerInvariant())</ModBackends>
+    <ModLustralVersion Condition="'$(ModLustralVersion)' == '' and '$(LustralSdkVersion)' != ''">^$(LustralSdkVersion)</ModLustralVersion>
+  </PropertyGroup>
+
+  <!-- Compile-time references only; Lustral provides the API, HarmonyX and the game's assemblies at runtime. -->
+  <ItemGroup>
+    <PackageReference Include="HarmonyX" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="ds5678.Il2CppInterop.Runtime" ExcludeAssets="runtime" PrivateAssets="all" Condition="'$(LustralBackend)' != 'Mono'" />
+    <PackageReference Include="Lustral.Api" ExcludeAssets="runtime" PrivateAssets="all" Condition="'$(LustralRepositoryRoot)' == ''" />
+    <!-- A global Version property (for example -p:Version=2.0.0) must not apply to Lustral.Api: CoreCLR does not bind a
+         reference to Lustral.Api 2.0.0 to the older Lustral.Api that Lustral ships. -->
+    <ProjectReference Include="$(LustralRepositoryRoot)src\Lustral.Api\Lustral.Api.csproj" Private="false" GlobalPropertiesToRemove="Version"
+                      Condition="'$(LustralRepositoryRoot)' != ''" />
+  </ItemGroup>
+  <!-- Package versions come from Lustral.Sdk.Versions.props in the packed SDK, or from central package management in the
+       Lustral repository. Both backends use the same HarmonyX version. -->
+  <ItemGroup Condition="'$(ManagePackageVersionsCentrally)' == 'true'">
+    <PackageReference Update="HarmonyX" VersionOverride="$(LustralHarmonyXVersion)" Condition="'$(LustralHarmonyXVersion)' != ''" />
+    <PackageReference Update="ds5678.Il2CppInterop.Runtime" VersionOverride="$(LustralIl2CppInteropVersion)" Condition="'$(LustralIl2CppInteropVersion)' != ''" />
+    <PackageReference Update="Lustral.Api" VersionOverride="$(LustralSdkVersion)" Condition="'$(LustralSdkVersion)' != ''" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ManagePackageVersionsCentrally)' != 'true'">
+    <PackageReference Update="HarmonyX" Version="$(LustralHarmonyXVersion)" />
+    <PackageReference Update="ds5678.Il2CppInterop.Runtime" Version="$(LustralIl2CppInteropVersion)" />
+    <PackageReference Update="Lustral.Api" Version="$(LustralSdkVersion)" />
+  </ItemGroup>
+
+  <!-- Lustral's analyzers ship in the Lustral.Api package; in the Lustral repository they are referenced from their project.
+       The analyzers read ModKind. -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ModKind" />
+    <ProjectReference Include="$(LustralRepositoryRoot)src\Lustral.Analyzers\Lustral.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"
+                      Condition="'$(LustralRepositoryRoot)' != ''" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LustralBackend)' == 'Il2Cpp'">
+    <Reference Include="$(LustralInteropDirectory)*.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- The game's assemblies, excluding its copies of the base class library, which come from the target framework. -->
+  <ItemGroup Condition="'$(LustralBackend)' == 'Mono'">
+    <Reference Include="$(LustralManagedDirectory)*.dll"
+               Exclude="$(LustralManagedDirectory)mscorlib.dll;$(LustralManagedDirectory)netstandard.dll;$(LustralManagedDirectory)System.dll;$(LustralManagedDirectory)System.*.dll;$(LustralManagedDirectory)Mono.*.dll;$(LustralManagedDirectory)Microsoft.*.dll"
+               Private="false" />
+    <!-- Not part of .NET Standard 2.1. Unity 6000.5 modules require the game's copy, which is newer than HarmonyX's dependency. -->
+    <Reference Include="$(LustralManagedDirectory)System.Runtime.CompilerServices.Unsafe.dll" Private="false"
+               Condition="Exists('$(LustralManagedDirectory)System.Runtime.CompilerServices.Unsafe.dll')" />
+  </ItemGroup>
+
+  <!--
+    LustralSkipWithoutGame (set by Lustral's samples): if the game is not installed, or is an IL2CPP game without generated
+    interop assemblies, the build is skipped with a warning instead of failing, so that a solution containing mods for
+    several games can still be built. For mods that target both backends, each backend is evaluated separately. Mod
+    projects normally leave it unset, so that the errors below are reported.
+  -->
+  <PropertyGroup Condition="'$(LustralSkipWithoutGame)' == 'true' and '$(TargetFramework)' != '' and ('$(LustralGameDirectory)' == '' or ('$(LustralBackend)' == 'Il2Cpp' and !Exists('$(LustralInteropDirectory)interop.json')))">
+    <_LustralSkipBuild>true</_LustralSkipBuild>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)Lustral.Sdk.Skip.targets" Condition="'$(_LustralSkipBuild)' == 'true'" />
+
+  <Target Name="LustralCheckProject" BeforeTargets="ResolveAssemblyReferences" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'$(ModId)' == ''" Text="Set &lt;ModId&gt; in $(MSBuildProjectFile): the mod's ID in lowercase, for example you.yourmod." />
+    <Error Condition="'$(ModId)' != '' and !$([System.Text.RegularExpressions.Regex]::IsMatch('$(ModId)', '^[a-z0-9]+([._-][a-z0-9]+)*$'))"
+           Text="ModId &quot;$(ModId)&quot; must consist of lowercase letters and digits, separated by single dots, hyphens or underscores (for example you.yourmod)." />
+    <Error Condition="'$(ModKind)' != 'mod' and '$(ModKind)' != 'library'" Text="ModKind must be mod or library, not &quot;$(ModKind)&quot;." />
+    <PropertyGroup>
+      <_LustralGameProperty>LustralGame</_LustralGameProperty>
+      <_LustralGameProperty Condition="'$(LustralBothBackends)' == 'true'">Lustral$(LustralBackend)Game</_LustralGameProperty>
+      <_LustralKindOfGame Condition="'$(_LustralGameBackend)' == 'Il2Cpp'">an IL2CPP game</_LustralKindOfGame>
+      <_LustralKindOfGame Condition="'$(_LustralGameBackend)' == 'Mono'">a Mono game</_LustralKindOfGame>
+      <_LustralSearchedStores>Steam and Epic Games Launcher libraries</_LustralSearchedStores>
+      <_LustralSearchedStores Condition="'$(LustralGameStore)' == 'Steam'">Steam libraries</_LustralSearchedStores>
+      <_LustralSearchedStores Condition="'$(LustralGameStore)' == 'Epic'">Epic Games Launcher libraries</_LustralSearchedStores>
+    </PropertyGroup>
+    <Error Condition="'$(LustralGameStore)' != '' and '$(LustralGameStore)' != 'Steam' and '$(LustralGameStore)' != 'Epic'"
+           Text="LustralGameStore must be Steam or Epic, not &quot;$(LustralGameStore)&quot;." />
+    <Message Condition="'$(_LustralGameInBothStores)' == 'true'" Importance="high"
+             Text="$(LustralGame) is installed from both Steam and the Epic Games Launcher; building against the Steam installation. Set &lt;$(_LustralGameProperty)Store&gt;Epic&lt;/$(_LustralGameProperty)Store&gt; to use the other one." />
+    <Error Condition="'$(LustralBothBackends)' == 'true' and '$(_LustralSingleGame)' != ''"
+           Text="$(MSBuildProjectFile) sets LustralGame or LustralGameDir together with LustralMonoGame or LustralIl2CppGame. Use LustralGame for a mod for one game, or LustralMonoGame and LustralIl2CppGame for a mod that targets both backends, and remove the other properties (including from Game.props.user)." />
+    <Error Condition="'$(LustralGame)' == '' and '$(LustralGameDir)' == '' and '$(LustralBothBackends)' != 'true'" Text="Set &lt;LustralGame&gt; in $(MSBuildProjectFile): the name of the game's installation folder (Steam or Epic Games Launcher), or its full path." />
+    <Error Condition="'$(LustralGame)' == '' and '$(LustralGameDir)' == '' and '$(LustralBothBackends)' == 'true'"
+           Text="$(MSBuildProjectFile) builds for $(LustralBackend) ($(TargetFramework)) but specifies no $(LustralBackend) game. Set &lt;$(_LustralGameProperty)&gt;." />
+    <Error Condition="'$(LustralGameDirectory)' == '' and ('$(LustralGame)' != '' or '$(LustralGameDir)' != '')"
+           Text="Game not found: $(LustralGame)$(LustralGameDir). Games are searched for by installation folder name in $(_LustralSearchedStores). For a game installed elsewhere, set &lt;$(_LustralGameProperty)Dir&gt;full path&lt;/$(_LustralGameProperty)Dir&gt; in a PropertyGroup in Game.props.user, next to $(MSBuildProjectFile)." />
+    <Error Condition="'$(LustralGameDirectory)' != '' and '$(_LustralGameBackend)' == ''" Text="$(LustralGameDirectory) is not a recognized Unity game: it contains neither GameAssembly.dll nor &lt;name&gt;_Data\Managed\Assembly-CSharp.dll." />
+    <Error Condition="'$(_LustralGameBackend)' != '' and '$(LustralBackend)' != '$(_LustralGameBackend)' and '$(LustralBothBackends)' == 'true'"
+           Text="$(LustralGame)$(LustralGameDir) is $(_LustralKindOfGame) and cannot be used as &lt;$(_LustralGameProperty)&gt;." />
+    <Error Condition="'$(_LustralGameBackend)' != '' and '$(LustralBackend)' != '$(_LustralGameBackend)' and '$(LustralBothBackends)' != 'true'"
+           Text="$(LustralGame)$(LustralGameDir) is $(_LustralKindOfGame), but LustralBackend is set to $(LustralBackend). Remove &lt;LustralBackend&gt;; the SDK determines it from the game." />
+    <Error Condition="'$(LustralBackend)' == 'Il2Cpp' and '$(TargetFramework)' != 'net10.0'" Text="$(LustralGame) is an IL2CPP game, so its mods must target net10.0, not $(TargetFramework). Remove &lt;TargetFramework&gt;; the SDK sets it automatically." />
+    <Error Condition="'$(LustralBackend)' == 'Mono' and '$(TargetFramework)' != 'netstandard2.1'" Text="$(LustralGame) is a Mono game, so its mods must target netstandard2.1, not $(TargetFramework). Remove &lt;TargetFramework&gt;; the SDK sets it automatically." />
+    <Error Condition="'$(LustralBackend)' == 'Il2Cpp' and !Exists('$(LustralInteropDirectory)interop.json')"
+           Text="$(LustralGame) has no interop assemblies. Install Lustral in the game and start the game once; Lustral generates the interop assemblies on first launch." />
+  </Target>
+
+  <!--
+    Assemblies that the game or Lustral already provides are not copied to the mod: Lustral's dependencies (HarmonyX,
+    MonoMod, Il2CppInterop and their dependencies) and any assembly in the game's Lustral/core, Managed or interop folder
+    (many games include Newtonsoft.Json, for example). Duplicate copies would cause conflicts.
+  -->
+  <PropertyGroup>
+    <_LustralProvidedPackages>;HarmonyX;Iced;Mono.Cecil;TerraFX.Interop.Windows;AssetRipper.Primitives;System.IO.Hashing;Microsoft.Extensions.Logging.Abstractions;Microsoft.Extensions.DependencyInjection.Abstractions;Lustral.Api;</_LustralProvidedPackages>
+  </PropertyGroup>
+  <Target Name="_LustralSkipProvidedAssemblies" AfterTargets="ResolveLockFileCopyLocalFiles">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+                               Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != '' and ($(_LustralProvidedPackages.Contains(';%(ReferenceCopyLocalPaths.NuGetPackageId);')) or $([System.String]::Copy('%(ReferenceCopyLocalPaths.NuGetPackageId)').StartsWith('MonoMod.')) or $([System.String]::Copy('%(ReferenceCopyLocalPaths.NuGetPackageId)').StartsWith('ds5678.Il2CppInterop.')))" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+                               Condition="'$(LustralGameDirectory)' != '' and (Exists('$(LustralCoreDirectory)%(Filename)%(Extension)') or Exists('$(LustralManagedDirectory)%(Filename)%(Extension)') or Exists('$(LustralInteropDirectory)%(Filename)%(Extension)'))" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Dependencies on library mods installed in the game are referenced automatically: the assemblies a library exports are
+    referenced for compilation only, as Lustral loads them from the library's folder. Set Reference="false" on the
+    ModDependency to disable this. A ProjectReference to the library's project takes precedence over the installed copy.
+  -->
+  <UsingTask TaskName="LustralDependencyReferences" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ModsDirectory ParameterType="System.String" Required="true" />
+      <Dependencies ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <ProjectReferences ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <References ParameterType="Microsoft.Build.Framework.ITaskItem[]" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs"><![CDATA[
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+public class LustralDependencyReferences : Microsoft.Build.Utilities.Task
+{
+    public string ModsDirectory { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Dependencies { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] ProjectReferences { get; set; }
+    [Microsoft.Build.Framework.Output]
+    public Microsoft.Build.Framework.ITaskItem[] References { get; set; }
+
+    public override bool Execute()
+    {
+        var fromProjects = new HashSet<string>((ProjectReferences ?? new Microsoft.Build.Framework.ITaskItem[0])
+            .Select(p => Path.GetFileNameWithoutExtension(p.ItemSpec)), StringComparer.OrdinalIgnoreCase);
+        var references = new List<Microsoft.Build.Framework.ITaskItem>();
+        foreach (var dependency in Dependencies ?? new Microsoft.Build.Framework.ITaskItem[0])
+        {
+            if (string.Equals(dependency.GetMetadata("Reference"), "false", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var folder = Path.Combine(ModsDirectory, dependency.ItemSpec);
+            var manifest = Path.Combine(folder, "mod.toml");
+            if (!File.Exists(manifest))
+            {
+                Log.LogMessage(Microsoft.Build.Framework.MessageImportance.Normal, "{0} is not installed in the game; its assemblies are not referenced", dependency.ItemSpec);
+                continue;
+            }
+            var text = File.ReadAllText(manifest);
+            // Only the exports of libraries are visible to other mods; on IL2CPP, each mod has its own load context.
+            if (!Regex.IsMatch(text, "^\\s*kind\\s*=\\s*\"library\"", RegexOptions.Multiline))
+                continue;
+            var names = new List<string>();
+            var exports = Regex.Match(text, "^\\s*exports\\s*=\\s*\\[([^\\]]*)\\]", RegexOptions.Multiline);
+            if (exports.Success)
+            {
+                foreach (Match name in Regex.Matches(exports.Groups[1].Value, "\"([^\"]+)\""))
+                    names.Add(name.Groups[1].Value);
+            }
+            else
+            {
+                var assembly = Regex.Match(text, "^\\s*assembly\\s*=\\s*\"([^\"]+)\"", RegexOptions.Multiline);
+                if (assembly.Success)
+                    names.Add(assembly.Groups[1].Value);
+            }
+            foreach (var name in names)
+            {
+                var simple = name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name.Substring(0, name.Length - 4) : name;
+                if (fromProjects.Contains(simple))
+                    continue;
+                var path = Path.Combine(folder, simple + ".dll");
+                if (!File.Exists(path))
+                {
+                    Log.LogWarning("{0} exports {1}, but {2} does not exist. Reinstall {0}.", dependency.ItemSpec, simple, path);
+                    continue;
+                }
+                var reference = new Microsoft.Build.Utilities.TaskItem(path);
+                reference.SetMetadata("Private", "false");
+                reference.SetMetadata("LustralDependency", dependency.ItemSpec);
+                references.Add(reference);
+            }
+        }
+        References = references.ToArray();
+        return !Log.HasLoggedErrors;
+    }
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+  <Target Name="LustralReferenceDependencies" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'@(ModDependency)' != '' and '$(LustralModsDirectory)' != '' and '$(_LustralSkipBuild)' != 'true'">
+    <LustralDependencyReferences ModsDirectory="$(LustralModsDirectory)" Dependencies="@(ModDependency)" ProjectReferences="@(_ResolvedProjectReferencePaths)">
+      <Output TaskParameter="References" ItemName="Reference" />
+    </LustralDependencyReferences>
+  </Target>
+
+  <!-- Writes mod.toml. A task is used because TOML requires escaping, optional keys and nested tables, which item transforms
+       cannot express well. -->
+  <UsingTask TaskName="LustralWriteModManifest" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Output ParameterType="System.String" Required="true" />
+      <ProjectFile ParameterType="System.String" Required="true" />
+      <Id ParameterType="System.String" Required="true" />
+      <Name ParameterType="System.String" Required="true" />
+      <Version ParameterType="System.String" Required="true" />
+      <Kind ParameterType="System.String" Required="true" />
+      <EntryAssembly ParameterType="System.String" />
+      <Exports ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <Description ParameterType="System.String" />
+      <Authors ParameterType="System.String" />
+      <Credits ParameterType="System.String" />
+      <License ParameterType="System.String" />
+      <LoadOrder ParameterType="System.String" />
+      <Color ParameterType="System.String" />
+      <Website ParameterType="System.String" />
+      <Source ParameterType="System.String" />
+      <Links ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <LustralVersion ParameterType="System.String" />
+      <UnityVersion ParameterType="System.String" />
+      <Backends ParameterType="System.String" />
+      <Platforms ParameterType="System.String" />
+      <Processes ParameterType="System.String" />
+      <Games ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <Dependencies ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <Incompatibilities ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
+      <UpdateSource ParameterType="System.String" />
+      <UpdateAsset ParameterType="System.String" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs"><![CDATA[
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+
+public class LustralWriteModManifest : Microsoft.Build.Utilities.Task
+{
+    public string Output { get; set; }
+    public string ProjectFile { get; set; }
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string Version { get; set; }
+    public string Kind { get; set; }
+    public string EntryAssembly { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Exports { get; set; }
+    public string Description { get; set; }
+    public string Authors { get; set; }
+    public string Credits { get; set; }
+    public string License { get; set; }
+    public string LoadOrder { get; set; }
+    public string Color { get; set; }
+    public string Website { get; set; }
+    public string Source { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Links { get; set; }
+    public string LustralVersion { get; set; }
+    public string UnityVersion { get; set; }
+    public string Backends { get; set; }
+    public string Platforms { get; set; }
+    public string Processes { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Games { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Dependencies { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Incompatibilities { get; set; }
+    public string UpdateSource { get; set; }
+    public string UpdateAsset { get; set; }
+
+    private static readonly string[] Oses = { "windows", "linux", "macos" };
+    // Unity rich text color names supported by Lustral's console.
+    private static readonly string[] ColorNames =
+    {
+        "aqua", "black", "blue", "brown", "cyan", "darkblue", "fuchsia", "green", "grey", "gray", "lightblue", "lime",
+        "magenta", "maroon", "navy", "olive", "orange", "purple", "red", "silver", "teal", "white", "yellow",
+    };
+    private static readonly string[] Architectures = { "x64", "x86", "arm64" };
+
+    public override bool Execute()
+    {
+        var text = new StringBuilder();
+        text.Append("# Generated by Lustral.Sdk from ").Append(ProjectFile).Append(". Do not edit; changes are overwritten on build.\n");
+        Key(text, "id", Id);
+        Key(text, "name", Name);
+        Key(text, "version", Version);
+        if (Kind != "mod")
+            Key(text, "kind", Kind);
+        if (Kind == "mod")
+            Key(text, "assembly", EntryAssembly);
+        else
+            text.Append("exports = ").Append(Array((Exports ?? new Microsoft.Build.Framework.ITaskItem[0]).Select(e => e.ItemSpec))).Append('\n');
+        Key(text, "description", Description);
+        var authors = List(Authors, ',');
+        if (authors.Count > 0)
+            text.Append("authors = ").Append(Array(authors)).Append('\n');
+        Key(text, "credits", Credits);
+        Key(text, "license", License);
+        if (!string.IsNullOrWhiteSpace(LoadOrder))
+        {
+            int order;
+            if (!int.TryParse(LoadOrder.Trim(), out order))
+                Log.LogError("ModLoadOrder must be an integer, for example -10 or 5, not \"{0}\".", LoadOrder);
+            else if (order != 0)
+                text.Append("load-order = ").Append(order).Append('\n');
+        }
+        if (!string.IsNullOrWhiteSpace(Color) && !IsColor(Color.Trim()))
+            Log.LogError("ModColor must be a Unity color name (for example orange or lightblue) or #rrggbb, not \"{0}\".", Color);
+        Key(text, "color", Color);
+
+        var links = new List<KeyValuePair<string, string>>();
+        if (!string.IsNullOrWhiteSpace(Website))
+            links.Add(new KeyValuePair<string, string>("website", Website.Trim()));
+        if (!string.IsNullOrWhiteSpace(Source))
+            links.Add(new KeyValuePair<string, string>("source", Source.Trim()));
+        foreach (var link in Links ?? new Microsoft.Build.Framework.ITaskItem[0])
+            links.Add(new KeyValuePair<string, string>(link.ItemSpec, link.GetMetadata("Url").Trim()));
+        foreach (var link in links)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(link.Value, UriKind.Absolute, out uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+                Log.LogError("The {0} link must be an HTTP or HTTPS address, not \"{1}\".", link.Key, link.Value);
+        }
+        if (links.Count > 0)
+        {
+            text.Append("\n[links]\n");
+            foreach (var link in links.GroupBy(l => l.Key).Select(g => g.Last()))
+                text.Append(Quote(link.Key)).Append(" = ").Append(Quote(link.Value)).Append('\n');
+        }
+
+        var requires = new StringBuilder();
+        Key(requires, "lustral", LustralVersion);
+        Key(requires, "unity", UnityVersion);
+        var backends = List(Backends, ',').Select(b => b.ToLowerInvariant()).Distinct().ToList();
+        foreach (var backend in backends.Where(b => b != "mono" && b != "il2cpp"))
+            Log.LogError("ModBackends: \"{0}\" must be mono or il2cpp.", backend);
+        if (backends.Count > 0 && backends.Count < 2)
+            requires.Append("backends = ").Append(Array(backends)).Append('\n');
+        var platforms = List(Platforms, ',').Select(p => p.ToLowerInvariant()).ToList();
+        foreach (var platform in platforms)
+        {
+            var parts = platform.Split('-');
+            if (parts.Length > 2 || !Oses.Contains(parts[0]) || (parts.Length == 2 && !Architectures.Contains(parts[1])))
+                Log.LogError("ModPlatforms: \"{0}\" must be windows, linux or macos, optionally with -x64, -x86 or -arm64.", platform);
+        }
+        if (platforms.Count > 0)
+            requires.Append("platforms = ").Append(Array(platforms)).Append('\n');
+        var processes = List(Processes, ',').Select(p => p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? p.Substring(0, p.Length - 4) : p).ToList();
+        if (processes.Count > 0)
+            requires.Append("processes = ").Append(Array(processes)).Append('\n');
+        var games = (Games ?? new Microsoft.Build.Framework.ITaskItem[0]).ToList();
+        if (games.Count > 0)
+        {
+            requires.Append("games = [\n");
+            foreach (var game in games)
+            {
+                requires.Append("    { name = ").Append(Quote(game.ItemSpec));
+                var developer = game.GetMetadata("Developer").Trim();
+                if (developer.Length > 0)
+                    requires.Append(", developer = ").Append(Quote(developer));
+                var versions = List(game.GetMetadata("Versions"), ',');
+                if (versions.Count > 0)
+                    requires.Append(", versions = ").Append(Array(versions));
+                requires.Append(" },\n");
+            }
+            requires.Append("]\n");
+        }
+        if (requires.Length > 0)
+            text.Append("\n[requires]\n").Append(requires);
+
+        Ranges(text, "dependencies", (Dependencies ?? new Microsoft.Build.Framework.ITaskItem[0]).Where(d => !IsTrue(d.GetMetadata("Optional"))));
+        Ranges(text, "optional-dependencies", (Dependencies ?? new Microsoft.Build.Framework.ITaskItem[0]).Where(d => IsTrue(d.GetMetadata("Optional"))));
+        Ranges(text, "incompatibilities", Incompatibilities ?? new Microsoft.Build.Framework.ITaskItem[0]);
+
+        if (!string.IsNullOrWhiteSpace(UpdateSource))
+        {
+            var source = UpdateSource.Trim();
+            Uri feed;
+            var github = source.StartsWith("github:", StringComparison.OrdinalIgnoreCase);
+            if (github && !System.Text.RegularExpressions.Regex.IsMatch(source.Substring(7), "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$"))
+                Log.LogError("ModUpdateSource: \"{0}\" must have the form github:owner/repository.", source);
+            else if (!github && !(Uri.TryCreate(source, UriKind.Absolute, out feed) && (feed.Scheme == "https" || (feed.Scheme == "http" && feed.IsLoopback))))
+                Log.LogError("ModUpdateSource must be github:owner/repository or the HTTPS address of a JSON feed, not \"{0}\".", source);
+            text.Append("\n[update]\n");
+            Key(text, "source", source);
+            Key(text, "asset", UpdateAsset);
+        }
+        if (Log.HasLoggedErrors)
+            return false;
+
+        var content = text.ToString();
+        if (!File.Exists(Output) || File.ReadAllText(Output) != content)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(Output)));
+            File.WriteAllText(Output, content, new UTF8Encoding(false));
+        }
+        return true;
+    }
+
+    private void Ranges(StringBuilder text, string table, IEnumerable<Microsoft.Build.Framework.ITaskItem> items)
+    {
+        var list = items.ToList();
+        if (list.Count == 0)
+            return;
+        text.Append('\n').Append('[').Append(table).Append("]\n");
+        foreach (var item in list)
+        {
+            var version = item.GetMetadata("Version").Trim();
+            if (version.Length == 0)
+            {
+                if (table == "incompatibilities")
+                    version = "*";
+                else
+                    Log.LogError("<ModDependency Include=\"{0}\"> requires a Version, for example \"^1.2\", or \"*\" for any version.", item.ItemSpec);
+            }
+            text.Append(Quote(item.ItemSpec)).Append(" = ").Append(Quote(version)).Append('\n');
+        }
+    }
+
+    private static bool IsColor(string value) =>
+        ColorNames.Contains(value.ToLowerInvariant())
+        || (value.StartsWith("#") && new[] { 4, 5, 7, 9 }.Contains(value.Length) && value.Skip(1).All(Uri.IsHexDigit));
+
+    private static bool IsTrue(string value) => string.Equals(value.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+
+    private static List<string> List(string value, char alsoSeparator) =>
+        (value ?? "").Split(';', alsoSeparator).Select(v => v.Trim()).Where(v => v.Length > 0).ToList();
+
+    private static void Key(StringBuilder text, string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            text.Append(key).Append(" = ").Append(Quote(value.Trim())).Append('\n');
+    }
+
+    private static string Array(IEnumerable<string> values) => "[" + string.Join(", ", values.Select(Quote)) + "]";
+
+    // A TOML basic string.
+    private static string Quote(string value)
+    {
+        var text = new StringBuilder("\"");
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '"': text.Append("\\\""); break;
+                case '\\': text.Append("\\\\"); break;
+                case '\n': text.Append("\\n"); break;
+                case '\r': text.Append("\\r"); break;
+                case '\t': text.Append("\\t"); break;
+                default:
+                    if (char.IsControl(c))
+                        text.Append("\\u").Append(((int)c).ToString("X4"));
+                    else
+                        text.Append(c);
+                    break;
+            }
+        }
+        return text.Append('"').ToString();
+    }
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- Runs in each target framework's build, not in the outer build of a multi-targeted project. The targets that follow
+       repeat this condition, because MSBuild runs AfterTargets targets even when the target they follow was skipped. -->
+  <Target Name="LustralWriteModManifest" AfterTargets="Build" Condition="'$(ModId)' != '' and '$(TargetFramework)' != '' and '$(_LustralSkipBuild)' != 'true'">
+    <ItemGroup>
+      <_LustralModExport Include="@(ModExport)" />
+      <_LustralModExport Include="$(AssemblyName)" Condition="'$(ModKind)' == 'library' and '@(ModExport)' == ''" />
+    </ItemGroup>
+    <!-- NuGet defaults Authors to the assembly name, which is not written as an author. -->
+    <PropertyGroup>
+      <_LustralAuthors Condition="'$(Authors)' != '$(AssemblyName)'">$(Authors)</_LustralAuthors>
+    </PropertyGroup>
+    <LustralWriteModManifest Output="$(LustralModManifestPath)" ProjectFile="$(MSBuildProjectFile)"
+                             Id="$(ModId)" Name="$(ModName)" Version="$(Version)" Kind="$(ModKind)" EntryAssembly="$(TargetFileName)"
+                             Exports="@(_LustralModExport)" Description="$(Description)"
+                             Authors="$(_LustralAuthors)"
+                             Credits="$(ModCredits)" License="$(PackageLicenseExpression)" LoadOrder="$(ModLoadOrder)" Color="$(ModColor)"
+                             Website="$(PackageProjectUrl)" Source="$(RepositoryUrl)" Links="@(ModLink)"
+                             LustralVersion="$(ModLustralVersion)" UnityVersion="$(ModUnityVersion)" Backends="$(ModBackends)"
+                             Platforms="$(ModPlatforms)" Processes="$(ModProcesses)" Games="@(ModGame)"
+                             Dependencies="@(ModDependency)" Incompatibilities="@(ModIncompatibility)"
+                             UpdateSource="$(ModUpdateSource)" UpdateAsset="$(ModUpdateAsset)" />
+    <ItemGroup>
+      <FileWrites Include="$(LustralModManifestPath)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Copies the mod to <game>/Mods/<id>/. Other files in that folder are left in place. -->
+  <Target Name="LustralDeploy" AfterTargets="LustralWriteModManifest" DependsOnTargets="GetCopyToOutputDirectoryItems"
+          Condition="'$(LustralDeploy)' == 'true' and '$(ModId)' != '' and '$(TargetFramework)' != '' and '$(LustralGameDirectory)' != '' and '$(DesignTimeBuild)' != 'true' and '$(_LustralSkipBuild)' != 'true'">
+    <PropertyGroup>
+      <LustralModDeployDirectory>$(LustralModsDirectory)$(ModId)\</LustralModDeployDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LustralDeployFile Include="$(TargetPath);$(LustralModManifestPath)" />
+      <_LustralDeployFile Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.dll' or '%(Extension)' == '.pdb'" />
+      <_LustralDeployFile Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+    <ItemGroup>
+      <_LustralDeployContent Include="@(AllItemsFullPathWithTargetPath)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_LustralDeployFile)" DestinationFolder="$(LustralModDeployDirectory)" SkipUnchangedFiles="true" Retries="0" ContinueOnError="true" />
+    <Copy SourceFiles="@(_LustralDeployContent)" DestinationFiles="@(_LustralDeployContent->'$(LustralModDeployDirectory)%(TargetPath)')"
+          SkipUnchangedFiles="true" Retries="0" ContinueOnError="true" Condition="'$(MSBuildLastTaskResult)' != 'false'" />
+    <Warning Condition="'$(MSBuildLastTaskResult)' == 'false'" Text="Could not deploy $(ModId) to $(LustralGame). If the game is running, close it and build again." />
+    <Message Condition="'$(MSBuildLastTaskResult)' != 'false'" Importance="high" Text="$(ModId) -&gt; $(LustralModDeployDirectory)" />
+    <Warning Condition="!Exists('$(LustralCoreDirectory)')" Text="Lustral is not installed in $(LustralGameDirectory). $(ModId) will not load until Lustral is installed." />
+  </Target>
+
+  <!-- ModPackage: packages the mod's folder (the deployed files) as <id>-<version>.zip for release. The zip contains the
+       folder, so users can extract it into the game's Mods folder; the updater accepts packages with or without it. Mods
+       built for both backends produce one package per backend in bin\<configuration>\, named after the backend, and the
+       updater selects the package that matches the game. -->
+  <Target Name="LustralPackageMod" AfterTargets="LustralWriteModManifest" DependsOnTargets="GetCopyToOutputDirectoryItems"
+          Condition="'$(ModPackage)' == 'true' and '$(ModId)' != '' and '$(TargetFramework)' != '' and '$(DesignTimeBuild)' != 'true' and '$(_LustralSkipBuild)' != 'true'">
+    <PropertyGroup>
+      <_LustralPackageStaging>$(IntermediateOutputPath)package\</_LustralPackageStaging>
+      <LustralModPackage>$(OutDir)$(ModId)-$(Version).zip</LustralModPackage>
+      <LustralModPackage Condition="'$(LustralBothBackends)' == 'true'">$(MSBuildProjectDirectory)\$(BaseOutputPath)$(Configuration)\$(ModId)-$(Version)-$(LustralBackend.ToLowerInvariant()).zip</LustralModPackage>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LustralPackageFile Include="$(TargetPath);$(LustralModManifestPath)" />
+      <_LustralPackageFile Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.dll' or '%(Extension)' == '.pdb'" />
+      <_LustralPackageFile Include="$(TargetDir)$(TargetName).pdb" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    </ItemGroup>
+    <RemoveDir Directories="$(_LustralPackageStaging)" />
+    <ItemGroup>
+      <_LustralPackageContent Include="@(AllItemsFullPathWithTargetPath)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_LustralPackageFile)" DestinationFolder="$(_LustralPackageStaging)$(ModId)" />
+    <Copy SourceFiles="@(_LustralPackageContent)" DestinationFiles="@(_LustralPackageContent->'$(_LustralPackageStaging)$(ModId)\%(TargetPath)')" />
+    <ZipDirectory SourceDirectory="$(_LustralPackageStaging)" DestinationFile="$(LustralModPackage)" Overwrite="true" />
+    <GetFileHash Files="$(LustralModPackage)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_LustralPackageHash" />
+    </GetFileHash>
+    <Message Importance="high" Text="$(ModId) package -&gt; $(LustralModPackage) (SHA-256 $(_LustralPackageHash.ToLowerInvariant()))" />
+    <ItemGroup>
+      <FileWrites Include="$(LustralModPackage)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Launch settings, so that F5 in Visual Studio, Rider or VS Code starts the game. Properties\launchSettings.json is
+    written once and never overwritten; delete it to regenerate it. It contains this machine's game path, so the mod
+    template excludes it from source control. Mods built for both backends get a profile for each game.
+    Steam games started outside Steam restart through Steam, which detaches the debugger. Setting SteamAppId and
+    SteamGameId, as Steam does, prevents the restart. The app ID is read from the Steam library's appmanifest_<id>.acf
+    whose installdir is the game's folder, or from LustralSteamAppId. Games from the Epic Games Launcher are started
+    directly; games that require the launcher must be started from it, with the debugger attached afterwards.
+    On IL2CPP games, the IDE's .NET debugger attaches to the game's CoreCLR runtime. Mono games require a soft debugger:
+    the profiles enable Mono's debugger agent (LUSTRAL_MONO_DEBUGGER, read by Lustral's stage 0) at
+    LustralMonoDebuggerAddress, for Visual Studio Tools for Unity (Debug > Attach Unity Debugger), Rider or dnSpy. The
+    "wait for debugger" profile suspends the game at startup until a debugger attaches, so that OnLoad can be debugged.
+    Set LustralLaunchSettings to false to disable this.
+  -->
+  <UsingTask TaskName="LustralWriteLaunchSettings" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Output ParameterType="System.String" Required="true" />
+      <Profiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs"><![CDATA[
+using System.IO;
+using System.Linq;
+using System.Text;
+
+public class LustralWriteLaunchSettings : Microsoft.Build.Utilities.Task
+{
+    public string Output { get; set; }
+    public Microsoft.Build.Framework.ITaskItem[] Profiles { get; set; }
+
+    // Each item is a game executable, with WorkingDirectory, SteamAppId and MonoDebugger (Mono debugger agent address) metadata.
+    public override bool Execute()
+    {
+        var profiles = new System.Collections.Generic.List<string>();
+        foreach (var game in Profiles)
+        {
+            var name = Path.GetFileNameWithoutExtension(game.ItemSpec);
+            var steam = game.GetMetadata("SteamAppId");
+            var debugger = game.GetMetadata("MonoDebugger");
+            profiles.Add(Profile(name, game, steam, debugger.Length > 0 ? debugger : null));
+            if (debugger.Length > 0)
+                profiles.Add(Profile(name + " (wait for debugger)", game, steam, debugger + ",suspend"));
+        }
+        var json = new StringBuilder("{\n  \"profiles\": {\n");
+        json.Append(string.Join(",\n", profiles)).Append("\n  }\n}\n");
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(Output)));
+        File.WriteAllText(Output, json.ToString(), new UTF8Encoding(false));
+        return true;
+    }
+
+    private static string Profile(string name, Microsoft.Build.Framework.ITaskItem game, string steamAppId, string monoDebugger)
+    {
+        var environment = new System.Collections.Generic.List<string>();
+        if (steamAppId.Length > 0)
+            environment.Add(Quote("SteamAppId") + ": " + Quote(steamAppId) + ", " + Quote("SteamGameId") + ": " + Quote(steamAppId));
+        if (monoDebugger != null)
+            environment.Add(Quote("LUSTRAL_MONO_DEBUGGER") + ": " + Quote(monoDebugger));
+        return "    " + Quote(name) + ": {\n" +
+               "      \"commandName\": \"Executable\",\n" +
+               "      \"executablePath\": " + Quote(game.ItemSpec) + ",\n" +
+               "      \"workingDirectory\": " + Quote(game.GetMetadata("WorkingDirectory")) + ",\n" +
+               "      \"environmentVariables\": { " + string.Join(", ", environment) + " }\n" +
+               "    }";
+    }
+
+    private static string Quote(string value) => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+}
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- The launch profile for this build's game. -->
+  <Target Name="LustralLaunchProfiles" Returns="@(LustralLaunchProfile)" Condition="'$(LustralGameExecutable)' != ''">
+    <PropertyGroup>
+      <_LustralGameFolder>$([System.IO.Path]::GetFileName($(LustralGameDirectory.TrimEnd('\'))))</_LustralGameFolder>
+      <_LustralSteamCommon>$([System.IO.Path]::GetFullPath('$(LustralGameDirectory)..'))</_LustralSteamCommon>
+      <_LustralSteamApps>$([System.IO.Path]::GetFullPath('$(LustralGameDirectory)..\..'))</_LustralSteamApps>
+      <_LustralInstallDirPattern>"installdir"\s+"$([System.Text.RegularExpressions.Regex]::Escape('$(_LustralGameFolder)'))"</_LustralInstallDirPattern>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(LustralSteamAppId)' == '' and $([System.IO.Path]::GetFileName('$(_LustralSteamCommon)')) == 'common'">
+      <_LustralAppManifest Include="$(_LustralSteamApps)\appmanifest_*.acf" />
+      <_LustralGameManifest Include="@(_LustralAppManifest)"
+                            Condition="$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('%(FullPath)')), '$(_LustralInstallDirPattern)', RegexOptions.IgnoreCase))" />
+    </ItemGroup>
+    <PropertyGroup Condition="'$(LustralSteamAppId)' == '' and '@(_LustralGameManifest)' != ''">
+      <_LustralSteamAppIds>@(_LustralGameManifest->'%(Filename)')</_LustralSteamAppIds>
+      <LustralSteamAppId>$(_LustralSteamAppIds.Split(';')[0].Replace('appmanifest_', ''))</LustralSteamAppId>
+    </PropertyGroup>
+    <PropertyGroup>
+      <LustralMonoDebuggerAddress Condition="'$(LustralMonoDebuggerAddress)' == ''">127.0.0.1:56000</LustralMonoDebuggerAddress>
+      <_LustralMonoDebugger Condition="'$(LustralBackend)' == 'Mono'">$(LustralMonoDebuggerAddress)</_LustralMonoDebugger>
+    </PropertyGroup>
+    <ItemGroup>
+      <LustralLaunchProfile Include="$(LustralGameExecutable)" WorkingDirectory="$(LustralGameDirectory)" SteamAppId="$(LustralSteamAppId)"
+                            MonoDebugger="$(_LustralMonoDebugger)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="LustralWriteLaunchSettings" BeforeTargets="Build"
+          Condition="'$(LustralLaunchSettings)' != 'false' and '$(DesignTimeBuild)' != 'true' and !Exists('$(MSBuildProjectDirectory)\Properties\launchSettings.json') and
+                     (('$(LustralBothBackends)' != 'true' and '$(LustralGameExecutable)' != '') or ('$(LustralBothBackends)' == 'true' and '$(TargetFramework)' == ''))">
+    <!-- Single-backend projects use this build's game. Multi-backend projects collect each target framework's game in the
+         outer build. -->
+    <CallTarget Targets="LustralLaunchProfiles" Condition="'$(LustralBothBackends)' != 'true'">
+      <Output TaskParameter="TargetOutputs" ItemName="_LustralLaunchProfile" />
+    </CallTarget>
+    <ItemGroup Condition="'$(LustralBothBackends)' == 'true'">
+      <_LustralLaunchFramework Include="$(TargetFrameworks)" />
+    </ItemGroup>
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="LustralLaunchProfiles" Properties="TargetFramework=%(_LustralLaunchFramework.Identity)"
+             Condition="'$(LustralBothBackends)' == 'true'">
+      <Output TaskParameter="TargetOutputs" ItemName="_LustralLaunchProfile" />
+    </MSBuild>
+    <LustralWriteLaunchSettings Output="$(MSBuildProjectDirectory)\Properties\launchSettings.json" Profiles="@(_LustralLaunchProfile)"
+                                Condition="'@(_LustralLaunchProfile)' != ''" />
+  </Target>
+</Project>

@@ -1,0 +1,12 @@
+<Project>
+  <!-- Machine-specific settings, excluded from source control by the mod template, for example
+       <LustralGameDir>D:\Games\Some Game</LustralGameDir>. -->
+  <Import Project="$(MSBuildProjectDirectory)\Game.props.user" Condition="Exists('$(MSBuildProjectDirectory)\Game.props.user')" />
+
+  <!-- Locates the game and sets the target framework, both of which the .NET SDK targets require. -->
+  <Import Project="$(MSBuildThisFileDirectory)Lustral.Sdk.Game.props" />
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <Import Project="$(MSBuildThisFileDirectory)Lustral.Sdk.Mod.targets" />
+</Project>

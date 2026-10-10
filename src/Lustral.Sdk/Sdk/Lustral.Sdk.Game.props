@@ -1,0 +1,167 @@
+<Project>
+  <!--
+    Locates the game and determines its scripting backend during evaluation, because the target framework depends on the
+    backend and the .NET SDK reads it before any target runs. The game folder is resolved in this order:
+      1. LustralGameDir, set in Game.props.user, Directory.Build.props, an environment variable or with
+         -p:LustralGameDir=...
+      2. LustralGame, if it is a full path.
+      3. steamapps\common\<LustralGame> in each Steam library (the first eight in libraryfolders.vdf).
+      4. <library>\<LustralGame> in each Epic Games Launcher library (see below).
+    LustralGame is therefore the name of the game's installation folder. Games from other stores are specified by path.
+    If the game is installed from both stores under the same folder name, the Steam installation is used; LustralGameStore
+    (Steam or Epic) restricts the search to one store.
+    Outputs: LustralGameDirectory (with a trailing slash), LustralBackend (Il2Cpp or Mono), LustralGameExecutable and the
+    directories below.
+
+    Mods that target both backends set LustralMonoGame and LustralIl2CppGame instead (or LustralMonoGameDir and
+    LustralIl2CppGameDir in Game.props.user). The project is then built once per backend from the same source:
+    netstandard2.1 for Mono and net10.0 for IL2CPP, each built against and deployed to its own game. To build for one
+    backend only, pass -p:LustralBackend=Mono or -p:LustralBackend=Il2Cpp.
+  -->
+  <!-- The single-game properties as set by the project, before the per-backend mapping below replaces them, so that
+       Lustral.Sdk.Mod.targets can report a project that mixes both styles. -->
+  <PropertyGroup>
+    <_LustralSingleGame>$(LustralGame)$(LustralGameDir)</_LustralSingleGame>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(LustralMonoGame)$(LustralMonoGameDir)$(LustralIl2CppGame)$(LustralIl2CppGameDir)' != ''">
+    <LustralBothBackends>true</LustralBothBackends>
+    <_LustralBuildMono Condition="'$(LustralMonoGame)$(LustralMonoGameDir)' != '' and '$(LustralBackend)' != 'Il2Cpp'">true</_LustralBuildMono>
+    <_LustralBuildIl2Cpp Condition="'$(LustralIl2CppGame)$(LustralIl2CppGameDir)' != '' and '$(LustralBackend)' != 'Mono'">true</_LustralBuildIl2Cpp>
+    <!-- Literal values are required: the result of a property function is escaped, and an escaped semicolon does not
+         separate target frameworks. -->
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and '$(_LustralBuildMono)' == 'true' and '$(_LustralBuildIl2Cpp)' == 'true'">netstandard2.1;net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and '$(_LustralBuildMono)' == 'true'">netstandard2.1</TargetFrameworks>
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == '' and '$(_LustralBuildIl2Cpp)' == 'true'">net10.0</TargetFrameworks>
+  </PropertyGroup>
+  <!-- Each target framework corresponds to one backend and is built against that backend's game. -->
+  <PropertyGroup Condition="'$(LustralBothBackends)' == 'true' and '$(TargetFramework)' == 'netstandard2.1'">
+    <LustralBackend>Mono</LustralBackend>
+    <LustralGame>$(LustralMonoGame)</LustralGame>
+    <LustralGameDir>$(LustralMonoGameDir)</LustralGameDir>
+    <LustralGameStore Condition="'$(LustralMonoGameStore)' != ''">$(LustralMonoGameStore)</LustralGameStore>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(LustralBothBackends)' == 'true' and '$(TargetFramework)' == 'net10.0'">
+    <LustralBackend>Il2Cpp</LustralBackend>
+    <LustralGame>$(LustralIl2CppGame)</LustralGame>
+    <LustralGameDir>$(LustralIl2CppGameDir)</LustralGameDir>
+    <LustralGameStore Condition="'$(LustralIl2CppGameStore)' != ''">$(LustralIl2CppGameStore)</LustralGameStore>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <_LustralGameDir>$(LustralGameDir)</_LustralGameDir>
+    <_LustralGameDir Condition="'$(_LustralGameDir)' == '' and '$(LustralGame)' != '' and $([System.IO.Path]::IsPathRooted('$(LustralGame)'))">$(LustralGame)</_LustralGameDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_LustralGameDir)' == '' and '$(LustralGame)' != '' and '$(OS)' == 'Windows_NT' and '$(LustralGameStore)' != 'Epic'">
+    <_LustralSteamPath>$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\Software\Valve\Steam', 'SteamPath', null, RegistryView.Default))</_LustralSteamPath>
+    <_LustralSteamLibraryFile>$(_LustralSteamPath)\steamapps\libraryfolders.vdf</_LustralSteamLibraryFile>
+    <!-- All "path" values in libraryfolders.vdf (unescaped), followed by Steam's own folder, padded so that the lookups
+         below always have enough entries. -->
+    <_LustralSteamLibraries Condition="'$(_LustralSteamPath)' != '' and Exists('$(_LustralSteamLibraryFile)')">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(_LustralSteamLibraryFile)')), '(?s).*?"path"\s+"([^"]*)"|(?s).+', '$1;'))</_LustralSteamLibraries>
+    <_LustralSteamLibraries>$(_LustralSteamLibraries.Replace('\\', '\'));$(_LustralSteamPath);;;;;;;;;</_LustralSteamLibraries>
+    <_LustralSteamLibrary0>$(_LustralSteamLibraries.Split(';')[0])</_LustralSteamLibrary0>
+    <_LustralSteamLibrary1>$(_LustralSteamLibraries.Split(';')[1])</_LustralSteamLibrary1>
+    <_LustralSteamLibrary2>$(_LustralSteamLibraries.Split(';')[2])</_LustralSteamLibrary2>
+    <_LustralSteamLibrary3>$(_LustralSteamLibraries.Split(';')[3])</_LustralSteamLibrary3>
+    <_LustralSteamLibrary4>$(_LustralSteamLibraries.Split(';')[4])</_LustralSteamLibrary4>
+    <_LustralSteamLibrary5>$(_LustralSteamLibraries.Split(';')[5])</_LustralSteamLibrary5>
+    <_LustralSteamLibrary6>$(_LustralSteamLibraries.Split(';')[6])</_LustralSteamLibrary6>
+    <_LustralSteamLibrary7>$(_LustralSteamLibraries.Split(';')[7])</_LustralSteamLibrary7>
+    <_LustralSteamLibrary8>$(_LustralSteamLibraries.Split(';')[8])</_LustralSteamLibrary8>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary0)' != '' and Exists('$(_LustralSteamLibrary0)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary0)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary1)' != '' and Exists('$(_LustralSteamLibrary1)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary1)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary2)' != '' and Exists('$(_LustralSteamLibrary2)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary2)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary3)' != '' and Exists('$(_LustralSteamLibrary3)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary3)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary4)' != '' and Exists('$(_LustralSteamLibrary4)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary4)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary5)' != '' and Exists('$(_LustralSteamLibrary5)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary5)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary6)' != '' and Exists('$(_LustralSteamLibrary6)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary6)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary7)' != '' and Exists('$(_LustralSteamLibrary7)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary7)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+    <_LustralSteamGameDir Condition="'$(_LustralSteamGameDir)' == '' and '$(_LustralSteamLibrary8)' != '' and Exists('$(_LustralSteamLibrary8)\steamapps\common\$(LustralGame)')">$(_LustralSteamLibrary8)\steamapps\common\$(LustralGame)</_LustralSteamGameDir>
+  </PropertyGroup>
+
+  <!--
+    Epic Games Launcher libraries: the default (Program Files\Epic Games), the launcher's configured default install
+    folder, and the parent folders of the installations listed in LauncherInstalled.dat. That list can be incomplete, so
+    it is used only to find library folders, and the game is matched by its folder name within them.
+  -->
+  <PropertyGroup Condition="'$(_LustralGameDir)' == '' and '$(LustralGame)' != '' and '$(OS)' == 'Windows_NT' and '$(LustralGameStore)' != 'Steam'">
+    <_LustralEpicInstalledFile>$(ProgramData)\Epic\UnrealEngineLauncher\LauncherInstalled.dat</_LustralEpicInstalledFile>
+    <_LustralEpicInstallations Condition="Exists('$(_LustralEpicInstalledFile)')">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(_LustralEpicInstalledFile)')), '(?s).*?"InstallLocation"\s*:\s*"([^"]*)"|(?s).+', '$1;'))</_LustralEpicInstallations>
+    <!-- Each installation's parent folder: the JSON escapes backslashes, and the last path segment is removed. -->
+    <_LustralEpicLibraries>$([System.Text.RegularExpressions.Regex]::Replace($(_LustralEpicInstallations.Replace('\\', '\')), '[\\/][^\\/;]+;', ';'))</_LustralEpicLibraries>
+    <_LustralEpicSettingsFile>$(LOCALAPPDATA)\EpicGamesLauncher\Saved\Config\Windows\GameUserSettings.ini</_LustralEpicSettingsFile>
+    <_LustralEpicSettingsFile Condition="!Exists('$(_LustralEpicSettingsFile)')">$(LOCALAPPDATA)\EpicGamesLauncher\Saved\Config\WindowsEditor\GameUserSettings.ini</_LustralEpicSettingsFile>
+    <_LustralEpicDefaultLibrary Condition="Exists('$(_LustralEpicSettingsFile)')">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(_LustralEpicSettingsFile)')), '(?s).*?DefaultAppInstallLocation=([^\r\n]*)(?s).*|(?s).+', '$1'))</_LustralEpicDefaultLibrary>
+    <_LustralProgramFiles>$(ProgramW6432)</_LustralProgramFiles>
+    <_LustralProgramFiles Condition="'$(_LustralProgramFiles)' == ''">$(ProgramFiles)</_LustralProgramFiles>
+    <_LustralEpicLibraries>$(_LustralProgramFiles)\Epic Games;$(_LustralEpicDefaultLibrary);$(_LustralEpicLibraries);;;;;;</_LustralEpicLibraries>
+    <_LustralEpicLibrary0>$(_LustralEpicLibraries.Split(';')[0])</_LustralEpicLibrary0>
+    <_LustralEpicLibrary1>$(_LustralEpicLibraries.Split(';')[1])</_LustralEpicLibrary1>
+    <_LustralEpicLibrary2>$(_LustralEpicLibraries.Split(';')[2])</_LustralEpicLibrary2>
+    <_LustralEpicLibrary3>$(_LustralEpicLibraries.Split(';')[3])</_LustralEpicLibrary3>
+    <_LustralEpicLibrary4>$(_LustralEpicLibraries.Split(';')[4])</_LustralEpicLibrary4>
+    <_LustralEpicLibrary5>$(_LustralEpicLibraries.Split(';')[5])</_LustralEpicLibrary5>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary0)' != '' and Exists('$(_LustralEpicLibrary0)\$(LustralGame)')">$(_LustralEpicLibrary0)\$(LustralGame)</_LustralEpicGameDir>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary1)' != '' and Exists('$(_LustralEpicLibrary1)\$(LustralGame)')">$(_LustralEpicLibrary1)\$(LustralGame)</_LustralEpicGameDir>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary2)' != '' and Exists('$(_LustralEpicLibrary2)\$(LustralGame)')">$(_LustralEpicLibrary2)\$(LustralGame)</_LustralEpicGameDir>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary3)' != '' and Exists('$(_LustralEpicLibrary3)\$(LustralGame)')">$(_LustralEpicLibrary3)\$(LustralGame)</_LustralEpicGameDir>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary4)' != '' and Exists('$(_LustralEpicLibrary4)\$(LustralGame)')">$(_LustralEpicLibrary4)\$(LustralGame)</_LustralEpicGameDir>
+    <_LustralEpicGameDir Condition="'$(_LustralEpicGameDir)' == '' and '$(_LustralEpicLibrary5)' != '' and Exists('$(_LustralEpicLibrary5)\$(LustralGame)')">$(_LustralEpicLibrary5)\$(LustralGame)</_LustralEpicGameDir>
+  </PropertyGroup>
+
+  <!-- Steam takes precedence when the game is found in both stores and no store is specified; the build reports it. -->
+  <PropertyGroup>
+    <_LustralGameInBothStores Condition="'$(LustralGameStore)' == '' and '$(_LustralSteamGameDir)' != '' and '$(_LustralEpicGameDir)' != ''">true</_LustralGameInBothStores>
+    <_LustralGameDir Condition="'$(_LustralGameDir)' == '' and '$(LustralGameStore)' != 'Epic'">$(_LustralSteamGameDir)</_LustralGameDir>
+    <_LustralGameDir Condition="'$(_LustralGameDir)' == '' and '$(LustralGameStore)' != 'Steam'">$(_LustralEpicGameDir)</_LustralGameDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_LustralGameDir)' != '' and Exists('$(_LustralGameDir)')">
+    <LustralGameDirectory>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(_LustralGameDir)'))))</LustralGameDirectory>
+    <!-- A Unity game consists of <name>.exe and a <name>_Data folder. -->
+    <!-- An array is converted to a semicolon-separated list only as a property's entire value, so the padding is appended
+         separately. -->
+    <_LustralDataDirectories>$([System.IO.Directory]::GetDirectories('$(LustralGameDirectory)', '*_Data'))</_LustralDataDirectories>
+    <_LustralDataDirectories>$(_LustralDataDirectories);</_LustralDataDirectories>
+    <_LustralDataDirectory>$(_LustralDataDirectories.Split(';')[0])</_LustralDataDirectory>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_LustralDataDirectory)' != ''">
+    <LustralGameDataDirectory>$(_LustralDataDirectory)\</LustralGameDataDirectory>
+    <_LustralDataName>$([System.IO.Path]::GetFileName('$(_LustralDataDirectory)'))</_LustralDataName>
+    <LustralGameExecutable>$(LustralGameDirectory)$(_LustralDataName.Substring(0, $([MSBuild]::Subtract($(_LustralDataName.Length), 5)))).exe</LustralGameExecutable>
+    <_LustralGameBackend Condition="Exists('$(LustralGameDirectory)GameAssembly.dll')">Il2Cpp</_LustralGameBackend>
+    <_LustralGameBackend Condition="'$(_LustralGameBackend)' == '' and Exists('$(LustralGameDataDirectory)Managed\Assembly-CSharp.dll')">Mono</_LustralGameBackend>
+    <LustralBackend Condition="'$(LustralBackend)' == ''">$(_LustralGameBackend)</LustralBackend>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(LustralGameDirectory)' != ''">
+    <LustralDirectory>$(LustralGameDirectory)Lustral\</LustralDirectory>
+    <LustralCoreDirectory>$(LustralDirectory)core\</LustralCoreDirectory>
+    <LustralInteropDirectory>$(LustralDirectory)interop\</LustralInteropDirectory>
+    <LustralModsDirectory>$(LustralGameDirectory)Mods\</LustralModsDirectory>
+    <LustralManagedDirectory Condition="'$(LustralGameDataDirectory)' != ''">$(LustralGameDataDirectory)Managed\</LustralManagedDirectory>
+  </PropertyGroup>
+
+  <!-- dotnet run, and IDEs that use it, build and deploy the mod, then start the game. -->
+  <PropertyGroup Condition="'$(LustralGameExecutable)' != '' and '$(StartAction)' == ''">
+    <StartAction>Program</StartAction>
+    <StartProgram>$(LustralGameExecutable)</StartProgram>
+    <StartWorkingDirectory>$(LustralGameDirectory)</StartWorkingDirectory>
+  </PropertyGroup>
+
+  <!-- Constants for backend-specific code; Il2CppInterop names some types differently (for example, with an Il2Cpp
+       namespace prefix). -->
+  <PropertyGroup>
+    <DefineConstants Condition="'$(LustralBackend)' == 'Il2Cpp'">$(DefineConstants);LUSTRAL_IL2CPP</DefineConstants>
+    <DefineConstants Condition="'$(LustralBackend)' == 'Mono'">$(DefineConstants);LUSTRAL_MONO</DefineConstants>
+  </PropertyGroup>
+
+  <!-- IL2CPP mods run on the .NET 10 runtime provided by Lustral; Mono mods run on the game's Mono runtime, which
+       implements .NET Standard 2.1 from Unity 2021.2 and .NET Standard 2.0 before. Mods built for 2.1 load in older
+       games as well, as long as they do not use members that only 2.1 provides. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' == ''">
+    <TargetFramework Condition="'$(LustralBackend)' == 'Mono'">netstandard2.1</TargetFramework>
+    <TargetFramework Condition="'$(LustralBackend)' != 'Mono'">net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>Lethal Company</LustralGame>
+    <ModId>lustral.samples.lethalcompany</ModId>
+    <ModName>Log Showcase</ModName>
+    <Version>0.1.0</Version>
+    <Description>Mono sample: Unity rich text in log messages, as rendered in the console window. Only writes to the log.</Description>
+  </PropertyGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

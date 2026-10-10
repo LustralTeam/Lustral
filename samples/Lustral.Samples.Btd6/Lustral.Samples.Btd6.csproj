@@ -1,0 +1,17 @@
+<Project>
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.props" />
+
+  <PropertyGroup>
+    <LustralGame>BloonsTD6</LustralGame>
+    <ModId>lustral.samples.btd6</ModId>
+    <ModName>Hello Bloons TD 6</ModName>
+    <Version>0.1.0</Version>
+    <Description>IL2CPP sample: the mod's MonoBehaviour counts frames and writes to the log, without changing the game.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ModGame Include="BloonsTD6" Developer="Ninja Kiwi" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Lustral.Sdk\Sdk\Sdk.targets" />
+</Project>

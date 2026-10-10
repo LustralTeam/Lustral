@@ -1,0 +1,11 @@
+// Lustral's version, from <Version> in Directory.Build.props. CMake generates version.h from this file.
+#ifndef LUSTRAL_VERSION_H
+#define LUSTRAL_VERSION_H
+
+#define LUSTRAL_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define LUSTRAL_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define LUSTRAL_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define LUSTRAL_VERSION "@LUSTRAL_VERSION@"
+#define LUSTRAL_VERSION_W L"@LUSTRAL_VERSION@"
+
+#endif

@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Lustral.Samples.AnyGame/Lustral.Samples.AnyGame.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+    <Project Path="samples/Lustral.Samples.Bendy/Lustral.Samples.Bendy.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+    <Project Path="samples/Lustral.Samples.Bombanana/Lustral.Samples.Bombanana.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+    <Project Path="samples/Lustral.Samples.Btd6/Lustral.Samples.Btd6.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+    <Project Path="samples/Lustral.Samples.LethalCompany/Lustral.Samples.LethalCompany.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+    <Project Path="samples/Lustral.Samples.PlagueInc/Lustral.Samples.PlagueInc.csproj" Type="9A19103F-16F7-4668-BE54-9A1E7A4F7556" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Lustral.Analyzers/Lustral.Analyzers.csproj" />
+    <Project Path="src/Lustral.Api/Lustral.Api.csproj" />
+    <Project Path="src/Lustral.Backend.Il2Cpp/Lustral.Backend.Il2Cpp.csproj" />
+    <Project Path="src/Lustral.Backend.Mono/Lustral.Backend.Mono.csproj" />
+    <Project Path="src/Lustral.Core/Lustral.Core.csproj" />
+    <Project Path="src/Lustral.Generator/Lustral.Generator.csproj" />
+    <Project Path="src/Lustral.Host.Mono/Lustral.Host.Mono.csproj" />
+    <Project Path="src/Lustral.Host/Lustral.Host.csproj" />
+    <Project Path="src/Lustral.Sdk/Lustral.Sdk.csproj" />
+    <Project Path="src/Lustral.Templates/Lustral.Templates.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lustral.Analyzers.Tests/Lustral.Analyzers.Tests.csproj" />
+    <Project Path="tests/Lustral.Backend.Il2Cpp.Tests/Lustral.Backend.Il2Cpp.Tests.csproj" />
+    <Project Path="tests/Lustral.Core.Tests/Lustral.Core.Tests.csproj" />
+  </Folder>
+</Solution>
