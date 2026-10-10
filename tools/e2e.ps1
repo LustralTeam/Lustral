@@ -93,7 +93,9 @@ function Start-FileServer([string]$root, [int]$port) {
 
 function Stop-FileServer($server) {
     Stop-Process -Id $server.ProcessId -Force -ErrorAction SilentlyContinue
-    Remove-Job $server.Job -Force -ErrorAction SilentlyContinue
+    # In PowerShell 7, removing a job whose process was killed throws "The pipe is being closed", which -ErrorAction does
+    # not suppress.
+    try { Remove-Job $server.Job -Force -ErrorAction Stop } catch { }
 }
 
 function Read-Log([string]$dir) { Get-Content -LiteralPath (Join-Path $dir 'Lustral\Logs\latest.log') -Raw }
@@ -231,8 +233,12 @@ try {
         if ($Scenario -in 'crash', 'all') {
             $script:current = "$($run.Version) $b crash"
             Write-Host "==> $script:current" -ForegroundColor Cyan
-            $code = Start-Player $dir (@('-lustral-test', 'crash') + $windowed)
-            Check 'crashes' ($code -eq -1073741819) "(exit $code)"
+            # A crashed player exits once Unity's crash handler and Windows Error Reporting are done, which took up to a
+            # minute on GitHub's runners.
+            $started = Get-Date
+            $code = Start-Player $dir (@('-lustral-test', 'crash') + $windowed) 180
+            $seconds = [int]((Get-Date) - $started).TotalSeconds
+            Check "crashes (exited after $seconds s)" ($code -eq -1073741819) "(exit $code)"
             Check 'leaves its session marker' ((Markers $dir).Count -eq 1)
             Start-Player $dir (@('-lustral-test', 'quit') + $windowed) | Out-Null
             $reports = @(Get-ChildItem -LiteralPath (Join-Path $dir 'Lustral\Reports') -Filter 'crash-*.txt' -ErrorAction SilentlyContinue)

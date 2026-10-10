@@ -120,6 +120,17 @@ jobs:
           path: .cache/testplayers/${{ matrix.unity }}
           key: testplayers-${{ steps.release.outputs.name }}
 
+      # A crashed test player exited only after about a minute on GitHub's runners, after Unity's crash handler had
+      # finished, so Windows Error Reporting is set to queue its reports instead of sending them, without dialogs. Its
+      # record of the crash in the event log, which the crash scenario checks, is kept.
+      - name: Windows Error Reporting
+        run: |
+          $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
+          New-ItemProperty -Path $key -Name ForceQueue -PropertyType DWord -Value 1 -Force | Out-Null
+          New-ItemProperty -Path $key -Name DontShowUI -PropertyType DWord -Value 1 -Force | Out-Null
+          Get-ItemProperty -Path $key | Format-List
+          Get-ChildItem -Path "$key\LocalDumps" -ErrorAction SilentlyContinue | Format-List
+
       - name: End-to-end tests
         run: ./tools/e2e.ps1 -UnityVersion ${{ matrix.unity }}
 
